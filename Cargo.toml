@@ -1,10 +1,13 @@
 [workspace]
 resolver = "2"
-members = ["xdp-socket-test",
- "xdp-test",
+members = [
+  "dpdk-test",
+  # "xdp-socket-test",
+  # "xdp-test",
 ]
 
 [workspace.dependencies]
 xsk-rs = "0.8.0"
-
 xdp-socket = "0.1"
+
+rust-dpdk-sys = { git = "https://github.com/ANLAB-KAIST/rust-dpdk", rev = "033358f0ad60f9ef5ebc5d027337e025b180b2fc" }

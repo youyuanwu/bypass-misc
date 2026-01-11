@@ -42,6 +42,14 @@ add_custom_target(dpdk_install
   VERBATIM
 )
 
+# Add custom target to uninstall DPDK artifacts
+add_custom_target(dpdk_uninstall
+  COMMAND ninja -C ${dpdk_BINARY_DIR} uninstall
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  COMMENT "Uninstalling DPDK artifacts"
+  VERBATIM
+)
+
 # Run example
 add_custom_target(dpdk_run_example
   COMMAND echo "=== Running helloworld example ==="
