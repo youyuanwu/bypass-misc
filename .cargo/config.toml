@@ -1,2 +1,6 @@
 [target.x86_64-unknown-linux-gnu]
 runner = "sudo -E"
+
+# One job at a time to avoid port conflicts
+[test]
+jobs = 1

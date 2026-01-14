@@ -1,0 +1,13 @@
+[package]
+name = "rpkt-test"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rpkt-dpdk.workspace = true
+ctrlc.workspace = true
+smoltcp.workspace = true
+arrayvec.workspace = true
+
+[dev-dependencies]
+serial_test.workspace = true

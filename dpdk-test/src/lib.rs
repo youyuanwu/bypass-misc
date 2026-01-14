@@ -12,10 +12,10 @@ mod tests {
                 let c_argv: Vec<_> = vec![
                     CString::new("dpdk-test").unwrap(),
                     CString::new("--no-huge").unwrap(),
-                    CString::new("--no-shconf").unwrap(),
+                    // CString::new("--no-shconf").unwrap(),
                     CString::new("--file-prefix=dpdk_test").unwrap(),
                     CString::new("--vdev=net_ring0").unwrap(), // Virtual ethernet device for testing
-                    CString::new("--vdev=net_ring1").unwrap(), // Second virtual device for forwarding
+                                                               // CString::new("--vdev=net_ring1").unwrap(), // Second virtual device for forwarding
                 ];
                 let mut c_argv_ptrs: Vec<*mut i8> =
                     c_argv.iter().map(|arg| arg.as_ptr() as *mut i8).collect();

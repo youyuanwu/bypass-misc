@@ -1,13 +1,19 @@
 [workspace]
 resolver = "2"
 members = [
-  "dpdk-test",
+  # "dpdk-test", 
+  "rpkt-test",
   # "xdp-socket-test",
   # "xdp-test",
 ]
 
 [workspace.dependencies]
-xsk-rs = "0.8.0"
-xdp-socket = "0.1"
+# xsk-rs = "0.8.0"
+# xdp-socket = "0.1"
+# rust-dpdk-sys = { git = "https://github.com/ANLAB-KAIST/rust-dpdk", rev = "033358f0ad60f9ef5ebc5d027337e025b180b2fc" }
 
-rust-dpdk-sys = { git = "https://github.com/ANLAB-KAIST/rust-dpdk", rev = "033358f0ad60f9ef5ebc5d027337e025b180b2fc" }
+rpkt-dpdk = { git = "https://github.com/duanjp8617/rpkt.git", rev = "ab79697ddc9fbae1a545d16fe68098f8e6ad3b87" }
+ctrlc = "3"
+smoltcp = "0.12"
+arrayvec = "0.7"
+serial_test = "3"
