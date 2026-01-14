@@ -8,6 +8,7 @@ rpkt-dpdk.workspace = true
 ctrlc.workspace = true
 smoltcp.workspace = true
 arrayvec.workspace = true
+nix.workspace = true
 
 [dev-dependencies]
 serial_test.workspace = true

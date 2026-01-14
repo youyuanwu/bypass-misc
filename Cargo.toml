@@ -17,3 +17,4 @@ ctrlc = "3"
 smoltcp = "0.12"
 arrayvec = "0.7"
 serial_test = "3"
+nix = { version = "0.30", features = ["net"] }
