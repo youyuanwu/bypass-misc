@@ -43,7 +43,7 @@ fn main() {
 
     // Initialize DPDK
     DpdkOption::new()
-        .args(&args.split(" ").collect::<Vec<_>>())
+        .args(args.split(" ").collect::<Vec<_>>())
         .init()
         .unwrap();
 
@@ -171,7 +171,7 @@ fn main() {
                     }
                 }
             }
-        } else if iteration % 10000 == 0 {
+        } else if iteration.is_multiple_of(10000) {
             // Print waiting message every ~1 second
             println!(
                 "[{}] Waiting for connections... (uptime: {}s)",

@@ -9,7 +9,10 @@ use std::net::Ipv4Addr;
 #[test]
 fn test_udp_socket_basic() {
     // Initialize DPDK
-    DpdkOption::new().init().unwrap();
+    DpdkOption::new()
+        .args(["--no-huge", "--no-pci", "--vdev=net_ring0"])
+        .init()
+        .unwrap();
 
     // Create mempool
     service()

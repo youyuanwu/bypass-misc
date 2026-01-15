@@ -5,13 +5,12 @@ project(dpdk LANGUAGES)
 include(FetchContent)
 
 message(STATUS "Fetching DPDK source code...")
-FetchContent_Declare(
+FetchContent_Populate(
   dpdk
   GIT_REPOSITORY https://github.com/DPDK/dpdk.git
   GIT_TAG        v22.11.11  # or specify a specific version tag like v23.11
+  GIT_SHALLOW    TRUE
 )
-
-FetchContent_Populate(dpdk)
 
 message(STATUS "DPDK source code fetched to: ${dpdk_SOURCE_DIR}")
 message(STATUS "DPDK build directory: ${dpdk_BINARY_DIR}")

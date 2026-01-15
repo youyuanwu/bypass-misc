@@ -24,17 +24,17 @@ pub fn get_pci_addr(interface: &str) -> Option<String> {
     if let Ok(entries) = fs::read_dir(&net_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name();
-            if let Some(name_str) = name.to_str() {
-                if name_str.starts_with("lower_") {
-                    // Follow the lower link to the actual device
-                    if let Ok(lower_link) = fs::read_link(entry.path()) {
-                        // Extract PCI address from path like: ../../../pci79ba:00/79ba:00:02.0/net/enP31162s2
-                        let path_str = lower_link.to_str()?;
-                        for component in path_str.split('/') {
-                            // 79ba:00:02.0
-                            if component.contains(':') && component.contains('.') {
-                                return Some(component.to_string());
-                            }
+            if let Some(name_str) = name.to_str()
+                && name_str.starts_with("lower_")
+            {
+                // Follow the lower link to the actual device
+                if let Ok(lower_link) = fs::read_link(entry.path()) {
+                    // Extract PCI address from path like: ../../../pci79ba:00/79ba:00:02.0/net/enP31162s2
+                    let path_str = lower_link.to_str()?;
+                    for component in path_str.split('/') {
+                        // 79ba:00:02.0
+                        if component.contains(':') && component.contains('.') {
+                            return Some(component.to_string());
                         }
                     }
                 }
@@ -50,14 +50,13 @@ pub fn get_interface_ipv4(interface: &str) -> Option<Ipv4Address> {
     let ifaddrs = getifaddrs().ok()?;
 
     for ifaddr in ifaddrs {
-        if ifaddr.interface_name == interface {
-            if let Some(address) = ifaddr.address {
-                if let Some(sockaddr_in) = address.as_sockaddr_in() {
-                    let ip = sockaddr_in.ip();
-                    let octets = ip.octets();
-                    return Some(Ipv4Address::new(octets[0], octets[1], octets[2], octets[3]));
-                }
-            }
+        if ifaddr.interface_name == interface
+            && let Some(address) = ifaddr.address
+            && let Some(sockaddr_in) = address.as_sockaddr_in()
+        {
+            let ip = sockaddr_in.ip();
+            let octets = ip.octets();
+            return Some(Ipv4Address::new(octets[0], octets[1], octets[2], octets[3]));
         }
     }
 
@@ -96,10 +95,10 @@ pub fn get_default_gateway() -> Option<Ipv4Address> {
     None
 }
 
-pub fn tcp_echo_test(loop_back_mode: bool) {
+pub fn tcp_echo_test(use_hardware: bool) {
     // Get IP address BEFORE DPDK takes over the interface
     let interface = "eth1";
-    let ip_addr = if loop_back_mode {
+    let ip_addr = if use_hardware {
         let addr = get_interface_ipv4(interface).expect("Failed to get IP address for eth1");
         println!("[Debug] Detected IP address for {}: {:?}", interface, addr);
         addr
@@ -110,16 +109,16 @@ pub fn tcp_echo_test(loop_back_mode: bool) {
     let gateway = get_default_gateway().unwrap_or(Ipv4Address::new(10, 0, 0, 1)); // Fallback to Azure default
     println!("[Debug] Detected gateway: {:?}", gateway);
 
-    let args = if loop_back_mode {
+    let args = if use_hardware {
         // Dynamically get PCI address for eth1
         let pci_addr = get_pci_addr(interface).expect("Failed to get PCI address for eth1");
         format!("-a {}", pci_addr)
     } else {
-        "--vdev=net_ring0 --no-pci".to_string() // virtual ring device only
+        "--no-huge --no-pci --vdev=net_ring0".to_string() // virtual ring device only
     };
     // Initialize DPDK with specified device
     DpdkOption::new()
-        .args(&args.split(" ").collect::<Vec<_>>())
+        .args(args.split(" ").collect::<Vec<_>>())
         .init()
         .unwrap();
     // Create mempool
@@ -147,7 +146,7 @@ pub fn tcp_echo_test(loop_back_mode: bool) {
     // Enable software loopback for self-addressed packets
     // Gateway won't help because it only routes to different networks
     // Physical NICs don't loopback packets to themselves at hardware level
-    if loop_back_mode {
+    if use_hardware {
         device.enable_loopback();
     }
 
@@ -288,11 +287,13 @@ pub fn tcp_echo_test(loop_back_mode: bool) {
                 });
 
                 // Echo back the data if we received any
-                if received.is_ok() && !echo_data.is_empty() && server.may_send() {
-                    if server.send_slice(&echo_data).is_ok() {
-                        println!("[Server] Echoed back {} bytes", echo_data.len());
-                        server_echoed = true;
-                    }
+                if received.is_ok()
+                    && !echo_data.is_empty()
+                    && server.may_send()
+                    && server.send_slice(&echo_data).is_ok()
+                {
+                    println!("[Server] Echoed back {} bytes", echo_data.len());
+                    server_echoed = true;
                 }
             }
         }

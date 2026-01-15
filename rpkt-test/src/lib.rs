@@ -3,6 +3,7 @@ pub mod tcp;
 pub mod udp;
 
 pub mod util {
+
     use std::process::Command;
 
     /// Ensure that hugepages are set up correctly
@@ -82,12 +83,16 @@ pub mod send {
 
     /// port_id is the device port id to send packets
     /// VM might have only port 0.
-    pub fn smoltcp_send(mem_pool_name: &str, port_id: u16) {
-        DpdkOption::new().init().unwrap();
+    pub fn udp_gen(mem_pool_name: &str, port_id: u16) {
+        DpdkOption::new()
+            .args(["--no-huge", "--no-pci", "--vdev=net_null0"])
+            .init()
+            .unwrap();
         let nb_qs = 2;
 
+        // Use small mempool for testing
         service()
-            .mempool_alloc(mem_pool_name, 8192 * 4, 256, 2048 + 128, 0)
+            .mempool_alloc(mem_pool_name, 4096, 256, 2048 + 128, 0)
             .unwrap();
 
         let eth_conf = EthConf::new();

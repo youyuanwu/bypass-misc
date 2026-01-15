@@ -1,0 +1,56 @@
+name: build
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest ]
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
+      # maybe ninja dpdk auto detects sccache?
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Run sccache-cache
+      uses: mozilla-actions/sccache-action@v0.0.9
+      with:
+        version: "v0.10.0"
+
+    - name: Install rust stable
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: 1.92.0
+        components: rustfmt, clippy
+
+    - name: Install cmake
+      uses: lukka/get-cmake@latest
+      with:
+        cmakeVersion: "~3.29.0" # Use version 3.29.x
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y meson ninja-build python3-pyelftools
+
+    - name: Build and install dpdk
+      run: |
+        cmake -S . -B build
+        cmake --build build --target dpdk_configure
+        cmake --build build --target dpdk_build --parallel
+        sudo cmake --build build --target dpdk_install
+
+    - name: Run cargo check
+      run: cargo check
+
+    - name: Run cargo fmt
+      run: cargo fmt --all -- --check
+    
+    - name: Run cargo clippy
+      run: cargo clippy --all-targets -- -D warnings
+    
+    - name: Run cargo test
+      run: cargo test --all -- --nocapture
