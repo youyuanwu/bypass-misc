@@ -8,7 +8,7 @@ members = [
 [workspace.dependencies]
 rpkt-dpdk = { git = "https://github.com/duanjp8617/rpkt.git", rev = "ab79697ddc9fbae1a545d16fe68098f8e6ad3b87" }
 ctrlc = "3"
-smoltcp = "0.12"
+smoltcp = { version = "0.12", features = ["async"] }
 arrayvec = "0.7"
 serial_test = "3"
 nix = { version = "0.30", features = ["net"] }

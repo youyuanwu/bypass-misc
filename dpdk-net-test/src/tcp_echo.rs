@@ -5,24 +5,35 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
 //! use dpdk_net_test::tcp_echo::{EchoServer, EchoClient, SocketConfig, run_echo_test};
+//! use dpdk_net::tcp::DpdkDeviceWithPool;
+//! use smoltcp::iface::{Interface, SocketSet};
+//! use smoltcp::time::Instant;
+//! use smoltcp::wire::Ipv4Address;
+//! use std::time::Duration;
 //!
-//! // Simple: use the helper function
-//! let (server_stats, client_stats) = run_echo_test(
-//!     &mut device, &mut iface, &mut sockets,
-//!     server_ip, 8080, b"Hello!",
-//!     Duration::from_secs(5),
-//! );
+//! fn example(
+//!     device: &mut DpdkDeviceWithPool,
+//!     iface: &mut Interface,
+//!     sockets: &mut SocketSet<'static>,
+//! ) {
+//!     let server_ip = Ipv4Address::new(192, 168, 1, 1);
+//!     let server_port = 8080;
 //!
-//! // Or manually:
-//! let mut server = EchoServer::new(&mut sockets, server_ip, 8080, SocketConfig::default());
-//! let mut client = EchoClient::new(&mut sockets, &mut iface, server_ep, SocketConfig::default(), data);
+//!     // Create server and client
+//!     let mut server = EchoServer::new(sockets, server_port, SocketConfig::default());
+//!     let mut client = EchoClient::new(
+//!         sockets, iface, server_ip, server_port, 49152, SocketConfig::default(),
+//!     );
+//!     client.send(b"Hello!");
 //!
-//! while !client.is_complete() {
-//!     iface.poll(Instant::now(), &mut device, &mut sockets);
-//!     server.process(&mut sockets);
-//!     client.process(&mut sockets);
+//!     // Poll until client receives echo
+//!     while !client.is_complete() {
+//!         iface.poll(Instant::now(), device, sockets);
+//!         server.process(sockets);
+//!         client.process(sockets);
+//!     }
 //! }
 //! ```
 
