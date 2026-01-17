@@ -10,8 +10,8 @@
 //!   nc 10.0.0.5 8080
 //!   # Type messages and see them echoed back
 
+use dpdk_net::tcp::{DEFAULT_MBUF_DATA_ROOM_SIZE, DEFAULT_MBUF_HEADROOM, DpdkDeviceWithPool};
 use rpkt_dpdk::*;
-use rpkt_test::dpdk_device::DpdkDeviceWithPool;
 use smoltcp::iface::{Config, Interface, SocketSet};
 use smoltcp::socket::tcp;
 use smoltcp::time::Instant;
@@ -21,13 +21,14 @@ use std::time::Duration;
 
 fn main() {
     // Setup hugepages
-    rpkt_test::util::ensure_hugepages().unwrap();
+    dpdk_net_test::util::ensure_hugepages().unwrap();
 
     // Get network configuration for eth1
     let interface = "eth1";
-    let ip_addr =
-        rpkt_test::tcp::get_interface_ipv4(interface).expect("Failed to get IP address for eth1");
-    let gateway = rpkt_test::tcp::get_default_gateway().unwrap_or(Ipv4Address::new(10, 0, 0, 1));
+    let ip_addr = dpdk_net_test::tcp::get_interface_ipv4(interface)
+        .expect("Failed to get IP address for eth1");
+    let gateway =
+        dpdk_net_test::tcp::get_default_gateway().unwrap_or(Ipv4Address::new(10, 0, 0, 1));
 
     println!("\n========================================");
     println!("DPDK TCP Echo Server");
@@ -38,7 +39,7 @@ fn main() {
 
     // Get PCI address for eth1
     let pci_addr =
-        rpkt_test::tcp::get_pci_addr(interface).expect("Failed to get PCI address for eth1");
+        dpdk_net_test::tcp::get_pci_addr(interface).expect("Failed to get PCI address for eth1");
     let args = format!("-a {}", pci_addr);
 
     // Initialize DPDK
@@ -49,7 +50,13 @@ fn main() {
 
     // Create mempool
     service()
-        .mempool_alloc("server_pool", 8192, 256, 2048 + 128, 0)
+        .mempool_alloc(
+            "server_pool",
+            8192,
+            256,
+            DEFAULT_MBUF_DATA_ROOM_SIZE as u16,
+            0,
+        )
         .unwrap();
 
     // Configure port
@@ -67,7 +74,8 @@ fn main() {
     let mempool = service().mempool("server_pool").unwrap();
 
     // Create DPDK device for smoltcp
-    let mut device = DpdkDeviceWithPool::new(rxq, txq, mempool, 1500);
+    let mbuf_capacity = DEFAULT_MBUF_DATA_ROOM_SIZE - DEFAULT_MBUF_HEADROOM;
+    let mut device = DpdkDeviceWithPool::new(rxq, txq, mempool, 1500, mbuf_capacity);
 
     // Get MAC address from DPDK
     let dev_info = service().dev_info(0).unwrap();

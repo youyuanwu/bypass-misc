@@ -186,6 +186,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "dpdk-net"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "rpkt-dpdk",
+ "smoltcp",
+]
+
+[[package]]
+name = "dpdk-net-test"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "ctrlc",
+ "dpdk-net",
+ "nix",
+ "rpkt-dpdk",
+ "serial_test",
+ "smoltcp",
+]
+
+[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -549,18 +571,6 @@ dependencies = [
  "once_cell",
  "rpkt",
  "version-compare",
-]
-
-[[package]]
-name = "rpkt-test"
-version = "0.1.0"
-dependencies = [
- "arrayvec",
- "ctrlc",
- "nix",
- "rpkt-dpdk",
- "serial_test",
- "smoltcp",
 ]
 
 [[package]]

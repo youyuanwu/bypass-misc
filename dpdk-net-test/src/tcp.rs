@@ -1,4 +1,4 @@
-use crate::dpdk_device::DpdkDeviceWithPool;
+use dpdk_net::tcp::{DEFAULT_MBUF_DATA_ROOM_SIZE, DEFAULT_MBUF_HEADROOM, DpdkDeviceWithPool};
 use nix::ifaddrs::getifaddrs;
 use rpkt_dpdk::*;
 use smoltcp::iface::{Config, Interface, SocketSet};
@@ -123,7 +123,7 @@ pub fn tcp_echo_test(use_hardware: bool) {
         .unwrap();
     // Create mempool
     service()
-        .mempool_alloc("tcp_pool", 8192, 256, 2048 + 128, 0)
+        .mempool_alloc("tcp_pool", 8192, 256, DEFAULT_MBUF_DATA_ROOM_SIZE as u16, 0)
         .unwrap();
 
     // Configure port
@@ -141,7 +141,8 @@ pub fn tcp_echo_test(use_hardware: bool) {
     let mempool = service().mempool("tcp_pool").unwrap();
 
     // Create DPDK device for smoltcp
-    let mut device = DpdkDeviceWithPool::new(rxq, txq, mempool, 1500);
+    let mbuf_capacity = DEFAULT_MBUF_DATA_ROOM_SIZE - DEFAULT_MBUF_HEADROOM;
+    let mut device = DpdkDeviceWithPool::new(rxq, txq, mempool, 1500, mbuf_capacity);
 
     // Enable software loopback for self-addressed packets
     // Gateway won't help because it only routes to different networks

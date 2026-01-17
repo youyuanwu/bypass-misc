@@ -2,6 +2,6 @@
 #[test]
 #[serial_test::serial]
 fn udp_gen() {
-    // rpkt_test::util::ensure_hugepages().unwrap();
-    rpkt_test::send::udp_gen("wtf", 0);
+    // dpdk_net_test::util::ensure_hugepages().unwrap();
+    dpdk_net_test::send::udp_gen("wtf", 0);
 }

@@ -1,7 +1,8 @@
 [package]
-name = "rpkt-test"
+name = "dpdk-net-test"
 version = "0.1.0"
 edition = "2024"
+publish = false
 
 [dependencies]
 rpkt-dpdk.workspace = true
@@ -9,6 +10,7 @@ ctrlc.workspace = true
 smoltcp.workspace = true
 arrayvec.workspace = true
 nix.workspace = true
+dpdk-net.workspace = true
 
 [dev-dependencies]
 serial_test.workspace = true

@@ -2,8 +2,8 @@
 //
 // This demonstrates how to use the UdpSocket with DPDK.
 
+use dpdk_net_test::udp::{Endpoint, UdpSocket};
 use rpkt_dpdk::*;
-use rpkt_test::udp::{Endpoint, UdpSocket};
 use std::net::Ipv4Addr;
 
 #[test]

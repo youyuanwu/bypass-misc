@@ -1,4 +1,3 @@
-pub mod dpdk_device;
 pub mod tcp;
 pub mod udp;
 
@@ -81,6 +80,8 @@ pub mod send {
     use rpkt_dpdk::*;
     use smoltcp::wire;
 
+    use dpdk_net::tcp::DEFAULT_MBUF_DATA_ROOM_SIZE;
+
     /// port_id is the device port id to send packets
     /// VM might have only port 0.
     pub fn udp_gen(mem_pool_name: &str, port_id: u16) {
@@ -92,7 +93,13 @@ pub mod send {
 
         // Use small mempool for testing
         service()
-            .mempool_alloc(mem_pool_name, 4096, 256, 2048 + 128, 0)
+            .mempool_alloc(
+                mem_pool_name,
+                4096,
+                256,
+                DEFAULT_MBUF_DATA_ROOM_SIZE as u16,
+                0,
+            )
             .unwrap();
 
         let eth_conf = EthConf::new();
