@@ -1,13 +1,15 @@
 //! TCP Echo Async Test
 //!
 //! This test creates an async TCP echo server and client using DPDK with smoltcp.
-//! It demonstrates the async_net module's Reactor and AsyncTcpSocket APIs.
+//! It demonstrates the tcp module's TcpListener and TcpStream APIs.
 //!
 //! Note: This is a separate test file because DPDK has global state that persists
 //! across tests within the same process.
 
-use dpdk_net::async_net::{AsyncTcpSocket, Reactor};
-use dpdk_net::tcp::{DEFAULT_MBUF_DATA_ROOM_SIZE, DEFAULT_MBUF_HEADROOM, DpdkDeviceWithPool};
+use dpdk_net::tcp::{
+    DEFAULT_MBUF_DATA_ROOM_SIZE, DEFAULT_MBUF_HEADROOM, DpdkDeviceWithPool, Reactor, TcpListener,
+    TcpStream,
+};
 use rpkt_dpdk::*;
 use smoltcp::iface::{Config, Interface};
 use smoltcp::time::Instant;
@@ -15,80 +17,127 @@ use smoltcp::wire::{EthernetAddress, IpAddress, IpCidr, Ipv4Address};
 
 const SERVER_PORT: u16 = 8080;
 const SERVER_IP: Ipv4Address = Ipv4Address::new(192, 168, 1, 1);
-const TEST_MESSAGE: &[u8] = b"Hello, Async Echo Server!";
+const NUM_CLIENTS: usize = 5;
 
-/// Combined async test that runs both server and client
-async fn run_async_echo_test(
-    server_socket: AsyncTcpSocket,
-    client_socket: AsyncTcpSocket,
-    message: &[u8],
-) -> Result<Vec<u8>, &'static str> {
-    // In a real scenario, these would run concurrently with proper task spawning.
-    // For this simple test, we interleave them manually by leveraging the
-    // single-threaded nature - the reactor polls both sockets.
-
-    // The client sends first, server receives and echoes, client receives
-    println!("\n--- Running async echo test ---\n");
-
-    // First, wait for client to connect
-    println!("Client state: {:?}", client_socket.state());
-    println!("Server state: {:?}", server_socket.state());
-
-    client_socket
-        .wait_connected()
-        .await
-        .map_err(|_| "client connection failed")?;
+/// Test N clients connecting simultaneously and being served
+async fn run_multi_client_test(
+    handle: &dpdk_net::tcp::ReactorHandle,
+    listener: &mut TcpListener,
+    num_clients: usize,
+) -> Result<(), &'static str> {
     println!(
-        "Client: connected to server, state: {:?}",
-        client_socket.state()
+        "\n--- Running multi-client test with {} clients ---\n",
+        num_clients
     );
-    println!(
-        "Server state after client connect: {:?}",
-        server_socket.state()
-    );
+    println!("Listener states: {:?}", listener.states());
 
-    // Wait for server to accept the connection (transition from Listen/SynReceived to Established)
-    // Use wait_connected which handles all pre-established states
-    server_socket
-        .wait_connected()
-        .await
-        .map_err(|_| "server accept failed")?;
+    // Create all clients at once (they all start connecting simultaneously)
+    let mut clients = Vec::with_capacity(num_clients);
+    for i in 0..num_clients {
+        let local_port = 49152 + i as u16;
+        let client = TcpStream::connect(
+            handle,
+            IpAddress::Ipv4(SERVER_IP),
+            SERVER_PORT,
+            local_port,
+            4096,
+            4096,
+        )
+        .map_err(|_| "client connect failed")?;
+        println!("Client {}: created (local port {})", i, local_port);
+        clients.push(client);
+    }
+
     println!(
-        "Server: accepted connection, state: {:?}",
-        server_socket.state()
+        "\nAll {} clients created, listener states: {:?}",
+        num_clients,
+        listener.states()
     );
 
-    // Client sends the message
-    client_socket
-        .send(message)
-        .await
-        .map_err(|_| "client send failed")?;
-    println!("Client: sent {} bytes", message.len());
+    // Wait for all clients to connect first
+    println!("\n=== Waiting for all clients to connect ===");
+    for (i, client) in clients.iter().enumerate() {
+        client
+            .wait_connected()
+            .await
+            .map_err(|_| "client connection failed")?;
+        println!("Client {}: connected", i);
+    }
+    println!(
+        "All clients connected, listener states: {:?}",
+        listener.states()
+    );
 
-    // Server receives the message
-    let mut server_buf = [0u8; 1024];
-    let server_len = server_socket
-        .recv(&mut server_buf)
-        .await
-        .map_err(|_| "server recv failed")?;
-    println!("Server: received {} bytes", server_len);
+    // Accept connections into a vec - they may be in any order
+    println!("\n=== Accepting all connections ===");
+    let mut server_streams = Vec::with_capacity(num_clients);
+    for i in 0..num_clients {
+        let server_stream = listener.accept().await.map_err(|_| "accept failed")?;
+        println!("Server: accepted connection {}", i);
+        server_streams.push(server_stream);
+    }
 
-    // Server echoes it back
-    server_socket
-        .send(&server_buf[..server_len])
-        .await
-        .map_err(|_| "server send failed")?;
-    println!("Server: echoed {} bytes", server_len);
+    // Now we have clients and servers - but they're not matched!
+    // Each server_stream is connected to exactly one client, determined by 4-tuple.
+    // We'll send from each client, then have each server recv and echo,
+    // then have each client recv.
 
-    // Client receives the echo
-    let mut client_buf = [0u8; 1024];
-    let client_len = client_socket
-        .recv(&mut client_buf)
-        .await
-        .map_err(|_| "client recv failed")?;
-    println!("Client: received echo of {} bytes", client_len);
+    // But there's no way to know which server_stream corresponds to which client
+    // without inspecting the remote endpoint. For the test, let's just verify
+    // that ALL echoes work correctly.
 
-    Ok(client_buf[..client_len].to_vec())
+    println!("\n=== Echo test (all clients simultaneously) ===");
+
+    // Each client sends a unique message
+    for (i, client) in clients.iter().enumerate() {
+        let message = format!("Hello from client {}!", i);
+        client
+            .send(message.as_bytes())
+            .await
+            .map_err(|_| "client send failed")?;
+        println!("Client {}: sent '{}'", i, message);
+    }
+
+    // Each server receives and echoes
+    for (i, stream) in server_streams.iter().enumerate() {
+        let mut buf = [0u8; 1024];
+        let len = stream
+            .recv(&mut buf)
+            .await
+            .map_err(|_| "server recv failed")?;
+        stream
+            .send(&buf[..len])
+            .await
+            .map_err(|_| "server send failed")?;
+        let msg = std::str::from_utf8(&buf[..len]).unwrap_or("<invalid>");
+        println!("Server {}: echoed '{}'", i, msg);
+    }
+
+    // Each client receives its echo and verifies
+    let mut verified = 0;
+    for (i, client) in clients.iter().enumerate() {
+        let expected = format!("Hello from client {}!", i);
+        let mut echo_buf = [0u8; 1024];
+        let echo_len = client
+            .recv(&mut echo_buf)
+            .await
+            .map_err(|_| "client recv failed")?;
+
+        let received = std::str::from_utf8(&echo_buf[..echo_len]).map_err(|_| "invalid utf8")?;
+
+        if received != expected {
+            println!(
+                "Client {}: MISMATCH! expected '{}', got '{}'",
+                i, expected, received
+            );
+            return Err("echo mismatch");
+        }
+        println!("Client {}: echo verified ✓", i);
+        verified += 1;
+    }
+
+    println!("\n✓ All {} clients verified!", verified);
+    Ok(())
 }
 
 #[test]
@@ -145,38 +194,29 @@ fn test_tcp_echo_async() {
     let reactor = Reactor::new(device, iface);
     let handle = reactor.handle();
 
-    // Create server socket (listening)
-    let server_socket = AsyncTcpSocket::listen(&handle, SERVER_PORT, 4096, 4096)
-        .expect("Failed to create listening socket");
-    println!("Server listening on {}:{}", SERVER_IP, SERVER_PORT);
-
-    // Create client socket (connecting)
-    let client_socket = AsyncTcpSocket::connect(
-        &handle,
-        IpAddress::Ipv4(SERVER_IP),
+    // Create server listener with backlog = NUM_CLIENTS + 1 to handle burst
+    // The +1 ensures there's always one socket ready even when all clients connect at once
+    let mut listener =
+        TcpListener::bind_with_backlog(&handle, SERVER_PORT, 4096, 4096, NUM_CLIENTS + 1)
+            .expect("Failed to bind listener");
+    println!(
+        "Server listening on {}:{} (backlog={})",
+        SERVER_IP,
         SERVER_PORT,
-        49152,
-        4096,
-        4096,
-    )
-    .expect("Failed to create client socket");
-    println!("Client connecting to {}:{}", SERVER_IP, SERVER_PORT);
+        listener.backlog()
+    );
 
     // Run the async test using the reactor's block_on
-    let result = reactor.block_on(run_async_echo_test(
-        server_socket,
-        client_socket,
-        TEST_MESSAGE,
-    ));
+    let result = reactor.block_on(run_multi_client_test(&handle, &mut listener, NUM_CLIENTS));
 
     // Verify the result
     match result {
-        Ok(echoed) => {
+        Ok(()) => {
             println!("\n--- Test Result ---");
-            println!("Sent:     {:?}", TEST_MESSAGE);
-            println!("Received: {:?}", &echoed);
-            assert_eq!(echoed, TEST_MESSAGE, "Echo mismatch!");
-            println!("\n✓ TCP Echo Async Test PASSED!\n");
+            println!(
+                "\n✓ TCP Echo Async Test PASSED ({} clients served)!\n",
+                NUM_CLIENTS
+            );
         }
         Err(e) => {
             panic!("Test failed: {}", e);
