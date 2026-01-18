@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```no_run
-//! use dpdk_net_test::tcp_echo::{EchoServer, EchoClient, SocketConfig, run_echo_test};
+//! use dpdk_net_test::manual::tcp_echo::{EchoServer, EchoClient, SocketConfig, run_echo_test};
 //! use dpdk_net::tcp::DpdkDeviceWithPool;
 //! use smoltcp::iface::{Interface, SocketSet};
 //! use smoltcp::time::Instant;
