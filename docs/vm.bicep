@@ -1,25 +1,43 @@
-param virtualMachines_test1_name string = 'test1'
-param publicIPAddresses_test1_ip_name string = 'test1-ip'
-param publicIPAddresses_test1_ip2_name string = 'test1-ip2'
-param virtualNetworks_test1_vnet_name string = 'test1-vnet'
-param networkInterfaces_test1809_z1_name string = 'test1809_z1'
-param networkInterfaces_test1809_z2_name string = 'test1809_z2'
-param networkSecurityGroups_test1_nsg_name string = 'test1-nsg'
-param schedules_shutdown_computevm_test1_name string = 'shutdown-computevm-test1'
+// Get resource group name as base for all resource names
+var baseName = resourceGroup().name
+var location = resourceGroup().location
+
+// Derived resource names
+var vmName = baseName
+var publicIpName = '${baseName}-ip'
+var publicIp2Name = '${baseName}-ip2'
+var vnetName = '${baseName}-vnet'
+var nic1Name = '${baseName}-nic1'
+var nic2Name = '${baseName}-nic2'
+var nsgName = '${baseName}-nsg'
+var shutdownScheduleName = 'shutdown-computevm-${baseName}'
+
 @description('SSH public key for VM access')
 param sshPublicKey string
 
-resource networkSecurityGroups_test1_nsg_name_resource 'Microsoft.Network/networkSecurityGroups@2024-07-01' = {
-  name: networkSecurityGroups_test1_nsg_name
-  location: 'westus2'
+@description('VM size')
+@allowed([
+  'Standard_D2s_v5'
+  'Standard_D4s_v5'
+  'Standard_D8s_v5'
+  'Standard_D16s_v5'
+  'Standard_D32s_v5'
+  'Standard_D48s_v5'
+  'Standard_D64s_v5'
+])
+param vmSize string = 'Standard_D2s_v5'
+
+resource nsg 'Microsoft.Network/networkSecurityGroups@2024-07-01' = {
+  name: nsgName
+  location: location
   properties: {
     securityRules: []
   }
 }
 
-resource publicIPAddresses_test1_ip_name_resource 'Microsoft.Network/publicIPAddresses@2024-07-01' = {
-  name: publicIPAddresses_test1_ip_name
-  location: 'westus2'
+resource publicIp 'Microsoft.Network/publicIPAddresses@2024-07-01' = {
+  name: publicIpName
+  location: location
   sku: {
     name: 'Standard'
     tier: 'Regional'
@@ -39,9 +57,9 @@ resource publicIPAddresses_test1_ip_name_resource 'Microsoft.Network/publicIPAdd
   }
 }
 
-resource publicIPAddresses_test1_ip2_name_resource 'Microsoft.Network/publicIPAddresses@2024-07-01' = {
-  name: publicIPAddresses_test1_ip2_name
-  location: 'westus2'
+resource publicIp2 'Microsoft.Network/publicIPAddresses@2024-07-01' = {
+  name: publicIp2Name
+  location: location
   sku: {
     name: 'Standard'
     tier: 'Regional'
@@ -60,9 +78,9 @@ resource publicIPAddresses_test1_ip2_name_resource 'Microsoft.Network/publicIPAd
   }
 }
 
-resource virtualNetworks_test1_vnet_name_resource 'Microsoft.Network/virtualNetworks@2024-07-01' = {
-  name: virtualNetworks_test1_vnet_name
-  location: 'westus2'
+resource vnet 'Microsoft.Network/virtualNetworks@2024-07-01' = {
+  name: vnetName
+  location: location
   properties: {
     addressSpace: {
       addressPrefixes: [
@@ -87,15 +105,15 @@ resource virtualNetworks_test1_vnet_name_resource 'Microsoft.Network/virtualNetw
   }
 }
 
-resource virtualMachines_test1_name_resource 'Microsoft.Compute/virtualMachines@2024-11-01' = {
-  name: virtualMachines_test1_name
-  location: 'westus2'
+resource vm 'Microsoft.Compute/virtualMachines@2024-11-01' = {
+  name: vmName
+  location: location
   zones: [
     '1'
   ]
   properties: {
     hardwareProfile: {
-      vmSize: 'Standard_D2s_v5'
+      vmSize: vmSize
     }
     additionalCapabilities: {
       hibernationEnabled: false
@@ -109,15 +127,11 @@ resource virtualMachines_test1_name_resource 'Microsoft.Compute/virtualMachines@
       }
       osDisk: {
         osType: 'Linux'
-        name: '${virtualMachines_test1_name}_OsDisk_1_f76f27a75d144b5ca2bee2c7320aa825'
+        name: '${vmName}_OsDisk'
         createOption: 'FromImage'
         caching: 'ReadWrite'
         managedDisk: {
           storageAccountType: 'Premium_LRS'
-          id: resourceId(
-            'Microsoft.Compute/disks',
-            '${virtualMachines_test1_name}_OsDisk_1_f76f27a75d144b5ca2bee2c7320aa825'
-          )
         }
         deleteOption: 'Delete'
         diskSizeGB: 30
@@ -126,7 +140,7 @@ resource virtualMachines_test1_name_resource 'Microsoft.Compute/virtualMachines@
       diskControllerType: 'SCSI'
     }
     osProfile: {
-      computerName: virtualMachines_test1_name
+      computerName: vmName
       #disable-next-line adminusername-should-not-be-literal
       adminUsername: 'azureuser'
       linuxConfiguration: {
@@ -147,7 +161,6 @@ resource virtualMachines_test1_name_resource 'Microsoft.Compute/virtualMachines@
       }
       secrets: []
       allowExtensionOperations: true
-      requireGuestProvisionSignal: true
     }
     securityProfile: {
       uefiSettings: {
@@ -160,14 +173,14 @@ resource virtualMachines_test1_name_resource 'Microsoft.Compute/virtualMachines@
       // Use 2 NIC so that 1 NIC can be used by DPDK
       networkInterfaces: [
         {
-          id: networkInterfaces_test1809_z1_name_resource.id
+          id: nic1.id
           properties: {
             deleteOption: 'Detach'
             primary: true
           }
         }
         {
-          id: networkInterfaces_test1809_z2_name_resource.id
+          id: nic2.id
           properties: {
             deleteOption: 'Detach'
             primary: false
@@ -183,9 +196,9 @@ resource virtualMachines_test1_name_resource 'Microsoft.Compute/virtualMachines@
   }
 }
 
-resource schedules_shutdown_computevm_test1_name_resource 'microsoft.devtestlab/schedules@2018-09-15' = {
-  name: schedules_shutdown_computevm_test1_name
-  location: 'westus2'
+resource shutdownSchedule 'microsoft.devtestlab/schedules@2018-09-15' = {
+  name: shutdownScheduleName
+  location: location
   properties: {
     status: 'Enabled'
     taskType: 'ComputeVmShutdownTask'
@@ -198,12 +211,12 @@ resource schedules_shutdown_computevm_test1_name_resource 'microsoft.devtestlab/
       timeInMinutes: 30
       notificationLocale: 'en'
     }
-    targetResourceId: virtualMachines_test1_name_resource.id
+    targetResourceId: vm.id
   }
 }
 
-resource networkSecurityGroups_test1_nsg_name_SSH 'Microsoft.Network/networkSecurityGroups/securityRules@2024-07-01' = {
-  parent: networkSecurityGroups_test1_nsg_name_resource
+resource nsgRuleSsh 'Microsoft.Network/networkSecurityGroups/securityRules@2024-07-01' = {
+  parent: nsg
   name: 'SSH'
   properties: {
     protocol: 'TCP'
@@ -221,8 +234,8 @@ resource networkSecurityGroups_test1_nsg_name_SSH 'Microsoft.Network/networkSecu
   }
 }
 
-resource networkSecurityGroups_test1_nsg_name_DPDK 'Microsoft.Network/networkSecurityGroups/securityRules@2024-07-01' = {
-  parent: networkSecurityGroups_test1_nsg_name_resource
+resource nsgRuleDpdk 'Microsoft.Network/networkSecurityGroups/securityRules@2024-07-01' = {
+  parent: nsg
   name: 'DPDK_TCP_Server'
   properties: {
     protocol: 'TCP'
@@ -240,8 +253,8 @@ resource networkSecurityGroups_test1_nsg_name_DPDK 'Microsoft.Network/networkSec
   }
 }
 
-resource virtualNetworks_test1_vnet_name_default 'Microsoft.Network/virtualNetworks/subnets@2024-07-01' = {
-  parent: virtualNetworks_test1_vnet_name_resource
+resource subnet 'Microsoft.Network/virtualNetworks/subnets@2024-07-01' = {
+  parent: vnet
   name: 'default'
   properties: {
     addressPrefix: '10.0.0.0/24'
@@ -251,9 +264,9 @@ resource virtualNetworks_test1_vnet_name_default 'Microsoft.Network/virtualNetwo
   }
 }
 
-resource networkInterfaces_test1809_z1_name_resource 'Microsoft.Network/networkInterfaces@2024-07-01' = {
-  name: networkInterfaces_test1809_z1_name
-  location: 'westus2'
+resource nic1 'Microsoft.Network/networkInterfaces@2024-07-01' = {
+  name: nic1Name
+  location: location
   // kind: 'Regular'
   properties: {
     ipConfigurations: [
@@ -264,13 +277,13 @@ resource networkInterfaces_test1809_z1_name_resource 'Microsoft.Network/networkI
           privateIPAddress: '10.0.0.4'
           privateIPAllocationMethod: 'Dynamic'
           publicIPAddress: {
-            id: publicIPAddresses_test1_ip_name_resource.id
+            id: publicIp.id
             properties: {
               deleteOption: 'Detach'
             }
           }
           subnet: {
-            id: virtualNetworks_test1_vnet_name_default.id
+            id: subnet.id
           }
           primary: true
           privateIPAddressVersion: 'IPv4'
@@ -284,7 +297,7 @@ resource networkInterfaces_test1809_z1_name_resource 'Microsoft.Network/networkI
     enableIPForwarding: false
     disableTcpStateTracking: false
     networkSecurityGroup: {
-      id: networkSecurityGroups_test1_nsg_name_resource.id
+      id: nsg.id
     }
     nicType: 'Standard'
     auxiliaryMode: 'None'
@@ -292,9 +305,9 @@ resource networkInterfaces_test1809_z1_name_resource 'Microsoft.Network/networkI
   }
 }
 
-resource networkInterfaces_test1809_z2_name_resource 'Microsoft.Network/networkInterfaces@2024-07-01' = {
-  name: networkInterfaces_test1809_z2_name
-  location: 'westus2'
+resource nic2 'Microsoft.Network/networkInterfaces@2024-07-01' = {
+  name: nic2Name
+  location: location
   // kind: 'Regular'
   properties: {
     ipConfigurations: [
@@ -305,13 +318,13 @@ resource networkInterfaces_test1809_z2_name_resource 'Microsoft.Network/networkI
           privateIPAddress: '10.0.0.5'
           privateIPAllocationMethod: 'Dynamic'
           publicIPAddress: {
-            id: publicIPAddresses_test1_ip2_name_resource.id
+            id: publicIp2.id
             properties: {
               deleteOption: 'Detach'
             }
           }
           subnet: {
-            id: virtualNetworks_test1_vnet_name_default.id
+            id: subnet.id
           }
           primary: true
           privateIPAddressVersion: 'IPv4'
@@ -325,7 +338,7 @@ resource networkInterfaces_test1809_z2_name_resource 'Microsoft.Network/networkI
     enableIPForwarding: false
     disableTcpStateTracking: false
     networkSecurityGroup: {
-      id: networkSecurityGroups_test1_nsg_name_resource.id
+      id: nsg.id
     }
     nicType: 'Standard'
     auxiliaryMode: 'None'

@@ -67,6 +67,10 @@ fn generate_bindings(include_dirs: &[PathBuf]) {
         .allowlist_function("rte_eth_tx_queue_setup")
         .allowlist_function("rte_eth_promiscuous_enable")
         .allowlist_function("rte_eth_promiscuous_disable")
+        .allowlist_function("rte_eth_dev_rss_reta_update")
+        .allowlist_function("rte_eth_dev_rss_reta_query")
+        .allowlist_function("rte_eth_dev_rss_hash_update")
+        .allowlist_function("rte_eth_dev_rss_hash_conf_get")
         .allowlist_function("rte_eal_init")
         .allowlist_function("rte_eal_cleanup")
         // generate useful dpdk types
@@ -84,6 +88,8 @@ fn generate_bindings(include_dirs: &[PathBuf]) {
         .allowlist_var("RTE_MBUF_DEFAULT_DATAROOM")
         .allowlist_var("RTE_PKTMBUF_HEADROOM")
         .allowlist_var("RTE_ETHDEV_QUEUE_STAT_CNTRS")
+        // RSS hash type constants (from wrapper.h static consts)
+        .allowlist_var("RUST_RTE_ETH_RSS_.*")
         .header("include/wrapper.h");
 
     let bindings = bgbuilder

@@ -34,4 +34,25 @@ uint16_t rust_eth_rx_burst(uint16_t port_id, uint16_t queue_id,
 uint16_t rust_eth_tx_burst(uint16_t port_id, uint16_t queue_id,
                            struct rte_mbuf **tx_pkts, uint16_t nb_pkts);
 
+// RSS hash type constants (expanded from RTE_BIT64 macros for bindgen)
+static const uint64_t RUST_RTE_ETH_RSS_IPV4 = RTE_ETH_RSS_IPV4;
+static const uint64_t RUST_RTE_ETH_RSS_FRAG_IPV4 = RTE_ETH_RSS_FRAG_IPV4;
+static const uint64_t RUST_RTE_ETH_RSS_NONFRAG_IPV4_TCP = RTE_ETH_RSS_NONFRAG_IPV4_TCP;
+static const uint64_t RUST_RTE_ETH_RSS_NONFRAG_IPV4_UDP = RTE_ETH_RSS_NONFRAG_IPV4_UDP;
+static const uint64_t RUST_RTE_ETH_RSS_NONFRAG_IPV4_SCTP = RTE_ETH_RSS_NONFRAG_IPV4_SCTP;
+static const uint64_t RUST_RTE_ETH_RSS_NONFRAG_IPV4_OTHER = RTE_ETH_RSS_NONFRAG_IPV4_OTHER;
+static const uint64_t RUST_RTE_ETH_RSS_IPV6 = RTE_ETH_RSS_IPV6;
+static const uint64_t RUST_RTE_ETH_RSS_FRAG_IPV6 = RTE_ETH_RSS_FRAG_IPV6;
+static const uint64_t RUST_RTE_ETH_RSS_NONFRAG_IPV6_TCP = RTE_ETH_RSS_NONFRAG_IPV6_TCP;
+static const uint64_t RUST_RTE_ETH_RSS_NONFRAG_IPV6_UDP = RTE_ETH_RSS_NONFRAG_IPV6_UDP;
+static const uint64_t RUST_RTE_ETH_RSS_NONFRAG_IPV6_SCTP = RTE_ETH_RSS_NONFRAG_IPV6_SCTP;
+static const uint64_t RUST_RTE_ETH_RSS_NONFRAG_IPV6_OTHER = RTE_ETH_RSS_NONFRAG_IPV6_OTHER;
+static const uint64_t RUST_RTE_ETH_RSS_IPV6_EX = RTE_ETH_RSS_IPV6_EX;
+static const uint64_t RUST_RTE_ETH_RSS_IPV6_TCP_EX = RTE_ETH_RSS_IPV6_TCP_EX;
+static const uint64_t RUST_RTE_ETH_RSS_IPV6_UDP_EX = RTE_ETH_RSS_IPV6_UDP_EX;
+// Combined convenience macros
+static const uint64_t RUST_RTE_ETH_RSS_IP = RTE_ETH_RSS_IP;
+static const uint64_t RUST_RTE_ETH_RSS_TCP = RTE_ETH_RSS_TCP;
+static const uint64_t RUST_RTE_ETH_RSS_UDP = RTE_ETH_RSS_UDP;
+
 #endif // DPDK_WRAPPER_H

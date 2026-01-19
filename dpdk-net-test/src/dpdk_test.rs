@@ -203,7 +203,13 @@ impl DpdkTestContextBuilder {
         let mbuf_capacity = self.data_room_size as usize - DEFAULT_MBUF_HEADROOM;
 
         // Create the device
-        let device = DpdkDeviceWithPool::new(rxq, txq, mempool, self.mtu, mbuf_capacity);
+        let device = DpdkDeviceWithPool::new(
+            rxq,
+            txq,
+            std::sync::Arc::new(mempool),
+            self.mtu,
+            mbuf_capacity,
+        );
 
         let context = DpdkTestContext { _eal: eal, eth_dev };
 

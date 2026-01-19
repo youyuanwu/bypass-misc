@@ -216,7 +216,13 @@ pub fn tcp_echo_test(use_hardware: bool) {
         let rxq = RxQueue::new(0, 0);
         let txq = TxQueue::new(0, 0);
         let mbuf_capacity = DEFAULT_MBUF_DATA_ROOM_SIZE - DEFAULT_MBUF_HEADROOM;
-        let device = DpdkDeviceWithPool::new(rxq, txq, mempool, DEFAULT_MTU, mbuf_capacity);
+        let device = DpdkDeviceWithPool::new(
+            rxq,
+            txq,
+            std::sync::Arc::new(mempool),
+            DEFAULT_MTU,
+            mbuf_capacity,
+        );
 
         let ctx = DpdkTestContext::from_parts(eal, eth_dev);
         (ctx, device)

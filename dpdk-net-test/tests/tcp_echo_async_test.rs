@@ -13,12 +13,14 @@
 
 use dpdk_net::BoxError;
 use dpdk_net::tcp::{Reactor, ReactorHandle, TcpListener, TcpStream};
+use dpdk_net_test::app::echo_server::{EchoServer, ServerStats};
 use dpdk_net_test::dpdk_test::DpdkTestContextBuilder;
 use smoltcp::iface::{Config, Interface};
 use smoltcp::time::Instant;
 use smoltcp::wire::{EthernetAddress, IpAddress, IpCidr, Ipv4Address};
-use std::future::Future;
+use std::sync::Arc;
 use tokio::runtime::Builder;
+use tokio_util::sync::CancellationToken;
 
 const SERVER_PORT: u16 = 8080;
 const SERVER_IP: Ipv4Address = Ipv4Address::new(192, 168, 1, 1);
@@ -85,79 +87,9 @@ async fn run_client(
     Ok(())
 }
 
-/// Run the server task: accept connections and echo data until shutdown
-///
-/// AcceptFuture is cancel-safe, so we can use tokio::select! to race
-/// accept against the shutdown signal.
-async fn run_server<F: Future<Output = ()>>(mut listener: TcpListener, shutdown: F) {
-    println!(
-        "Server: listening on {}:{} (backlog={})",
-        SERVER_IP,
-        SERVER_PORT,
-        listener.backlog()
-    );
+// Using EchoServer from dpdk_net_test::app::echo_server
 
-    // Pin the shutdown future so we can poll it repeatedly
-    tokio::pin!(shutdown);
-
-    let mut conn_id = 0usize;
-    loop {
-        tokio::select! {
-            // Shutdown signal received
-            _ = &mut shutdown => {
-                println!("Server: shutdown signal received");
-                break;
-            }
-            // New connection accepted
-            result = listener.accept() => {
-                match result {
-                    Ok(stream) => {
-                        let id = conn_id;
-                        conn_id += 1;
-                        println!("Server: accepted connection {}", id);
-
-                        // Spawn handler as background task
-                        tokio::task::spawn_local(async move {
-                            handle_server_connection(stream, id).await;
-                        });
-                    }
-                    Err(e) => {
-                        eprintln!("Server: accept failed: {:?}", e);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// Handle a single server connection: receive, echo, and close
-async fn handle_server_connection(stream: TcpStream, conn_id: usize) {
-    let mut buf = [0u8; 1024];
-
-    // Receive data
-    let len = match stream.recv(&mut buf).await {
-        Ok(len) => len,
-        Err(e) => {
-            eprintln!("Server {}: recv failed: {:?}", conn_id, e);
-            return;
-        }
-    };
-
-    let msg = std::str::from_utf8(&buf[..len]).unwrap_or("<invalid>");
-    println!("Server {}: received '{}'", conn_id, msg);
-
-    // Echo it back
-    if let Err(e) = stream.send(&buf[..len]).await {
-        eprintln!("Server {}: send failed: {:?}", conn_id, e);
-        return;
-    }
-
-    println!("Server {}: echoed '{}'", conn_id, msg);
-
-    // Close gracefully and wait for shutdown to complete
-    stream.close().await;
-}
+// Using handle_connection from dpdk_net_test::app::echo_server
 
 /// Test N clients connecting simultaneously and being served
 async fn run_multi_client_test(
@@ -170,13 +102,13 @@ async fn run_multi_client_test(
         num_clients
     );
 
-    // Create shutdown channel
-    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+    // Create cancellation token for shutdown
+    let cancel = CancellationToken::new();
+    let stats = Arc::new(ServerStats::new());
 
-    // Spawn server task with shutdown signal
-    let server_handle = tokio::task::spawn_local(run_server(listener, async {
-        let _ = shutdown_rx.await;
-    }));
+    // Create and spawn EchoServer
+    let server = EchoServer::new(listener, cancel.clone(), stats, 0, SERVER_PORT);
+    let server_handle = tokio::task::spawn_local(server.run());
 
     // Spawn client tasks and collect their handles
     let mut client_handles = Vec::with_capacity(num_clients);
@@ -200,7 +132,7 @@ async fn run_multi_client_test(
     }
 
     // Signal server to shutdown
-    let _ = shutdown_tx.send(());
+    cancel.cancel();
 
     // Wait for server to finish
     match server_handle.await {

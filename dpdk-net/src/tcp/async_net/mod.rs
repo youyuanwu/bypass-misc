@@ -82,7 +82,7 @@ pub use tokio_compat::{TokioRuntime, TokioTcpStream};
 pub use smoltcp::socket::tcp::{ConnectError, ListenError};
 
 use super::DpdkDeviceWithPool;
-use smoltcp::iface::{Interface, PollIngressSingleResult, SocketSet};
+use smoltcp::iface::{Interface, PollIngressSingleResult, SocketHandle, SocketSet};
 use smoltcp::phy::Device;
 use smoltcp::time::Instant;
 use std::cell::RefCell;
@@ -103,6 +103,9 @@ pub struct ReactorInner<D: Device> {
     pub device: D,
     pub iface: Interface,
     pub sockets: SocketSet<'static>,
+    /// Orphaned sockets that are in graceful close but no longer owned by a TcpStream.
+    /// These will be cleaned up once they reach Closed or TimeWait state.
+    pub(crate) orphaned_closing: Vec<SocketHandle>,
 }
 
 impl<D: Device> ReactorInner<D> {
@@ -114,6 +117,7 @@ impl<D: Device> ReactorInner<D> {
             device,
             iface,
             sockets,
+            ..
         } = self;
         iface.poll_ingress_single(timestamp, device, sockets)
     }
@@ -124,8 +128,28 @@ impl<D: Device> ReactorInner<D> {
             device,
             iface,
             sockets,
+            ..
         } = self;
         iface.poll_egress(timestamp, device, sockets);
+    }
+
+    /// Clean up orphaned sockets that have completed their graceful close.
+    ///
+    /// Sockets in TimeWait or Closed state can be safely removed.
+    fn cleanup_orphaned(&mut self) {
+        use smoltcp::socket::tcp::State;
+
+        self.orphaned_closing.retain(|&handle| {
+            let socket = self.sockets.get::<smoltcp::socket::tcp::Socket>(handle);
+            match socket.state() {
+                State::Closed | State::TimeWait => {
+                    // Socket is fully closed, remove it
+                    self.sockets.remove(handle);
+                    false // Remove from orphan list
+                }
+                _ => true, // Keep in orphan list, still closing
+            }
+        });
     }
 }
 
@@ -145,6 +169,7 @@ impl Reactor<DpdkDeviceWithPool> {
                 device,
                 iface,
                 sockets: SocketSet::new(vec![]),
+                orphaned_closing: Vec::new(),
             })),
         }
     }
@@ -263,6 +288,12 @@ impl Reactor<DpdkDeviceWithPool> {
             {
                 let mut inner = self.inner.borrow_mut();
                 inner.poll_egress(timestamp);
+            }
+
+            // Clean up orphaned closing sockets that have completed their handshake
+            {
+                let mut inner = self.inner.borrow_mut();
+                inner.cleanup_orphaned();
             }
 
             // Yield even when no packets, to avoid busy spinning

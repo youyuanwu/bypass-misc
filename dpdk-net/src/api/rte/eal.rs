@@ -39,6 +39,8 @@ pub enum EalOption {
     InMemory,
     /// Base virtual address (--base-virtaddr=<addr>)
     BaseVirtAddr(String),
+    /// Allow a PCI device (-a <pci_addr>)
+    Allow(String),
     /// Custom argument (pass-through)
     Custom(String),
 }
@@ -60,6 +62,7 @@ impl EalOption {
             EalOption::LogLevel(level) => vec![format!("--log-level={}", level.as_str())],
             EalOption::InMemory => vec!["--in-memory".to_string()],
             EalOption::BaseVirtAddr(addr) => vec![format!("--base-virtaddr={}", addr)],
+            EalOption::Allow(pci_addr) => vec!["-a".to_string(), pci_addr.clone()],
             EalOption::Custom(arg) => vec![arg.clone()],
         }
     }
@@ -216,6 +219,12 @@ impl EalBuilder {
     /// Enable in-memory mode (--in-memory)
     pub fn in_memory(mut self) -> Self {
         self.options.push(EalOption::InMemory);
+        self
+    }
+
+    /// Allow a PCI device (-a <pci_addr>)
+    pub fn allow(mut self, pci_addr: impl Into<String>) -> Self {
+        self.options.push(EalOption::Allow(pci_addr.into()));
         self
     }
 

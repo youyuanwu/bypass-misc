@@ -1,6 +1,7 @@
 use arrayvec::ArrayVec;
 use smoltcp::phy::{self, Device, DeviceCapabilities, Medium};
 use smoltcp::time::Instant;
+use std::sync::Arc;
 
 use crate::api::rte::mbuf::Mbuf;
 use crate::api::rte::pktmbuf::MemPool;
@@ -33,7 +34,7 @@ impl phy::RxToken for DpdkRxToken {
 pub struct DpdkDeviceWithPool {
     rxq: RxQueue,
     txq: TxQueue,
-    mempool: MemPool,
+    mempool: Arc<MemPool>,
     rx_batch: ArrayVec<Mbuf, 64>,
     tx_batch: ArrayVec<Mbuf, 64>,
     mtu: usize,
@@ -47,7 +48,7 @@ impl DpdkDeviceWithPool {
     /// # Arguments
     /// * `rxq` - DPDK receive queue
     /// * `txq` - DPDK transmit queue  
-    /// * `mempool` - Memory pool for mbuf allocation
+    /// * `mempool` - Memory pool for mbuf allocation (wrapped in Arc for sharing)
     /// * `mtu` - Maximum transmission unit (payload size, typically 1500)
     /// * `mbuf_capacity` - Usable capacity of mbufs (data_room_size - headroom)
     ///
@@ -56,7 +57,7 @@ impl DpdkDeviceWithPool {
     pub fn new(
         rxq: RxQueue,
         txq: TxQueue,
-        mempool: MemPool,
+        mempool: Arc<MemPool>,
         mtu: usize,
         mbuf_capacity: usize,
     ) -> Self {
@@ -94,6 +95,31 @@ impl DpdkDeviceWithPool {
         while !self.tx_batch.is_empty() {
             self.txq.tx(&mut self.tx_batch);
         }
+    }
+
+    /// Inject a packet into the receive path.
+    ///
+    /// This is useful for pre-populating the ARP cache by injecting
+    /// a fake ARP reply before the device starts processing real traffic.
+    ///
+    /// # Arguments
+    /// * `data` - The raw Ethernet frame to inject
+    ///
+    /// # Returns
+    /// `true` if the packet was injected successfully, `false` if there's no space
+    pub fn inject_rx_packet(&mut self, data: &[u8]) -> bool {
+        if self.rx_batch.len() >= self.rx_batch.capacity() {
+            return false;
+        }
+
+        // Allocate mbuf from mempool and copy data
+        if let Some(mut mbuf) = self.mempool.try_alloc()
+            && mbuf.copy_from_slice(data)
+        {
+            self.rx_batch.push(mbuf);
+            return true;
+        }
+        false
     }
 }
 

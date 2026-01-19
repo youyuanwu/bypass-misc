@@ -1,5 +1,6 @@
 Deploy vm
 ```sh
+rg=myrg
 # create rg
 az group create --name $rg --location westus2
 
@@ -7,5 +8,7 @@ az group create --name $rg --location westus2
 az deployment group create \
   --resource-group $rg \
   --template-file docs/vm.bicep \
-  --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)"
+  --parameters sshPublicKey=@~/.ssh/id_rsa.pub
+
+az group delete --name $rg
 ```

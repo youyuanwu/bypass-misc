@@ -1,3 +1,4 @@
+pub mod app;
 pub mod manual;
 pub mod udp;
 
@@ -9,6 +10,129 @@ pub mod util {
 
     pub const TEST_MBUF_COUNT: u32 = 8192;
     pub const TEST_MBUF_CACHE_SIZE: u32 = 256;
+
+    /// Channel information from ethtool
+    #[derive(Debug, Clone, Copy, Default)]
+    pub struct EthtoolChannels {
+        /// Maximum supported RX-only channels
+        pub max_rx: u32,
+        /// Maximum supported TX-only channels
+        pub max_tx: u32,
+        /// Maximum supported other channels
+        pub max_other: u32,
+        /// Maximum supported combined channels (RX+TX on same queue)
+        pub max_combined: u32,
+        /// Current RX-only channels
+        pub rx_count: u32,
+        /// Current TX-only channels
+        pub tx_count: u32,
+        /// Current other channels
+        pub other_count: u32,
+        /// Current combined channels
+        pub combined_count: u32,
+    }
+
+    /// Get ethtool channel information for a network interface.
+    ///
+    /// This uses the SIOCETHTOOL ioctl to query channel counts,
+    /// equivalent to running `ethtool -l <interface>`.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use dpdk_net_test::util::get_ethtool_channels;
+    ///
+    /// let channels = get_ethtool_channels("eth1").unwrap();
+    /// println!("Max combined queues: {}", channels.max_combined);
+    /// println!("Current combined queues: {}", channels.combined_count);
+    /// ```
+    pub fn get_ethtool_channels(interface: &str) -> Result<EthtoolChannels, String> {
+        use nix::libc;
+        use std::ffi::CString;
+
+        // ethtool command constants
+        const ETHTOOL_GCHANNELS: u32 = 0x0000003c;
+        const SIOCETHTOOL: libc::c_ulong = 0x8946;
+
+        // struct ethtool_channels from linux/ethtool.h
+        #[repr(C)]
+        struct EthtoolChannelsRaw {
+            cmd: u32,
+            max_rx: u32,
+            max_tx: u32,
+            max_other: u32,
+            max_combined: u32,
+            rx_count: u32,
+            tx_count: u32,
+            other_count: u32,
+            combined_count: u32,
+        }
+
+        // Create a socket for the ioctl
+        let sock = unsafe { libc::socket(libc::AF_INET, libc::SOCK_DGRAM, 0) };
+        if sock < 0 {
+            return Err("Failed to create socket".to_string());
+        }
+
+        // Ensure socket is closed when we're done
+        struct SocketGuard(i32);
+        impl Drop for SocketGuard {
+            fn drop(&mut self) {
+                unsafe { libc::close(self.0) };
+            }
+        }
+        let _guard = SocketGuard(sock);
+
+        // Prepare ethtool_channels struct
+        let mut channels = EthtoolChannelsRaw {
+            cmd: ETHTOOL_GCHANNELS,
+            max_rx: 0,
+            max_tx: 0,
+            max_other: 0,
+            max_combined: 0,
+            rx_count: 0,
+            tx_count: 0,
+            other_count: 0,
+            combined_count: 0,
+        };
+
+        // Prepare ifreq struct
+        let mut ifr: libc::ifreq = unsafe { std::mem::zeroed() };
+
+        // Copy interface name
+        let ifname = CString::new(interface).map_err(|_| "Invalid interface name")?;
+        let ifname_bytes = ifname.as_bytes_with_nul();
+        if ifname_bytes.len() > libc::IFNAMSIZ {
+            return Err("Interface name too long".to_string());
+        }
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                ifname_bytes.as_ptr(),
+                ifr.ifr_name.as_mut_ptr() as *mut u8,
+                ifname_bytes.len(),
+            );
+        }
+
+        // Set ifr_data to point to our ethtool_channels struct
+        ifr.ifr_ifru.ifru_data = &mut channels as *mut _ as *mut libc::c_char;
+
+        // Make the ioctl call
+        let ret = unsafe { libc::ioctl(sock, SIOCETHTOOL, &mut ifr) };
+        if ret < 0 {
+            let errno = std::io::Error::last_os_error();
+            return Err(format!("ioctl SIOCETHTOOL failed: {}", errno));
+        }
+
+        Ok(EthtoolChannels {
+            max_rx: channels.max_rx,
+            max_tx: channels.max_tx,
+            max_other: channels.max_other,
+            max_combined: channels.max_combined,
+            rx_count: channels.rx_count,
+            tx_count: channels.tx_count,
+            other_count: channels.other_count,
+            combined_count: channels.combined_count,
+        })
+    }
 
     /// Ensure that hugepages are set up correctly
     /// nr_hugepages: number of hugepages to allocate
@@ -74,6 +198,137 @@ pub mod util {
         }
 
         Ok(())
+    }
+
+    /// Get the MAC address of a neighbor (gateway) from the kernel's neighbor cache.
+    ///
+    /// This is equivalent to running `ip neigh show <ip_address>`.
+    /// Returns the MAC address as a 6-byte array if found.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use dpdk_net_test::util::get_neighbor_mac;
+    ///
+    /// if let Some(mac) = get_neighbor_mac("10.0.0.1") {
+    ///     println!("Gateway MAC: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
+    ///         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    /// }
+    /// ```
+    pub fn get_neighbor_mac(ip_address: &str) -> Option<[u8; 6]> {
+        let output = Command::new("ip")
+            .args(["neigh", "show", ip_address])
+            .output()
+            .ok()?;
+
+        if !output.status.success() {
+            return None;
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        // Parse output like: "10.0.0.1 dev eth0 lladdr 12:34:56:78:9a:bc REACHABLE"
+        for line in stdout.lines() {
+            if let Some(lladdr_pos) = line.find("lladdr ") {
+                let mac_start = lladdr_pos + 7;
+                let mac_str: String = line[mac_start..].chars().take(17).collect();
+                return parse_mac_address(&mac_str);
+            }
+        }
+        None
+    }
+
+    /// Parse a MAC address string like "12:34:56:78:9a:bc" into bytes
+    fn parse_mac_address(mac_str: &str) -> Option<[u8; 6]> {
+        let parts: Vec<&str> = mac_str.split(':').collect();
+        if parts.len() != 6 {
+            return None;
+        }
+
+        let mut mac = [0u8; 6];
+        for (i, part) in parts.iter().enumerate() {
+            mac[i] = u8::from_str_radix(part, 16).ok()?;
+        }
+        Some(mac)
+    }
+
+    /// Build an ARP reply packet that teaches smoltcp the gateway MAC.
+    ///
+    /// This creates a fake ARP reply from the gateway, which smoltcp will
+    /// process and add to its neighbor cache.
+    ///
+    /// # Arguments
+    /// * `our_mac` - Our interface's MAC address
+    /// * `our_ip` - Our interface's IP address
+    /// * `gateway_mac` - The gateway's MAC address (from kernel neighbor cache)
+    /// * `gateway_ip` - The gateway's IP address
+    ///
+    /// # Returns
+    /// A Vec<u8> containing the complete Ethernet frame with ARP reply
+    pub fn build_arp_reply(
+        our_mac: [u8; 6],
+        our_ip: [u8; 4],
+        gateway_mac: [u8; 6],
+        gateway_ip: [u8; 4],
+    ) -> Vec<u8> {
+        let mut packet = vec![0u8; 42]; // Ethernet (14) + ARP (28)
+
+        // Ethernet header
+        packet[0..6].copy_from_slice(&our_mac); // Destination MAC (us)
+        packet[6..12].copy_from_slice(&gateway_mac); // Source MAC (gateway)
+        packet[12..14].copy_from_slice(&[0x08, 0x06]); // EtherType: ARP
+
+        // ARP header
+        packet[14..16].copy_from_slice(&[0x00, 0x01]); // Hardware type: Ethernet
+        packet[16..18].copy_from_slice(&[0x08, 0x00]); // Protocol type: IPv4
+        packet[18] = 6; // Hardware address length
+        packet[19] = 4; // Protocol address length
+        packet[20..22].copy_from_slice(&[0x00, 0x02]); // Operation: ARP Reply
+
+        // Sender hardware address (gateway MAC)
+        packet[22..28].copy_from_slice(&gateway_mac);
+        // Sender protocol address (gateway IP)
+        packet[28..32].copy_from_slice(&gateway_ip);
+        // Target hardware address (our MAC)
+        packet[32..38].copy_from_slice(&our_mac);
+        // Target protocol address (our IP)
+        packet[38..42].copy_from_slice(&our_ip);
+
+        packet
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_get_ethtool_channels_eth1() {
+            match get_ethtool_channels("eth1") {
+                Ok(channels) => {
+                    println!("eth1 channel info:");
+                    println!("  max_rx: {}", channels.max_rx);
+                    println!("  max_tx: {}", channels.max_tx);
+                    println!("  max_combined: {}", channels.max_combined);
+                    println!("  rx_count: {}", channels.rx_count);
+                    println!("  tx_count: {}", channels.tx_count);
+                    println!("  combined_count: {}", channels.combined_count);
+
+                    // On Azure VMs with accelerated networking, combined_count should be > 0
+                    assert!(
+                        channels.combined_count > 0 || channels.rx_count > 0,
+                        "Expected at least one queue"
+                    );
+                }
+                Err(e) => {
+                    // eth1 might not exist on all systems
+                    println!("Skipping test: {}", e);
+                }
+            }
+        }
+
+        #[test]
+        fn test_get_ethtool_channels_invalid_interface() {
+            let result = get_ethtool_channels("nonexistent_interface_xyz");
+            assert!(result.is_err(), "Expected error for non-existent interface");
+        }
     }
 }
 

@@ -148,24 +148,26 @@ impl Drop for TcpStream {
     fn drop(&mut self) {
         let mut inner = self.reactor.borrow_mut();
 
-        // Abort only if the socket is still active and not in a closing state.
-        // If close() was called, the socket will be in FinWait1/FinWait2/Closing/TimeWait,
-        // and we should let the graceful shutdown complete.
+        // Check the socket state to decide how to clean up
         let socket = inner.sockets.get_mut::<tcp::Socket>(self.handle);
         match socket.state() {
-            // Already closed or in graceful shutdown - don't abort
-            State::Closed
-            | State::FinWait1
-            | State::FinWait2
-            | State::Closing
-            | State::TimeWait
-            | State::LastAck => {}
-            // Still active - abort to notify peer
-            _ => socket.abort(),
+            // Already fully closed - safe to remove immediately
+            State::Closed | State::TimeWait => {
+                inner.sockets.remove(self.handle);
+            }
+            // In graceful shutdown - add to orphan list for deferred cleanup
+            // The reactor will remove these once they reach Closed/TimeWait
+            State::FinWait1 | State::FinWait2 | State::Closing | State::LastAck => {
+                inner.orphaned_closing.push(self.handle);
+            }
+            // Still active - abort to send RST, then defer cleanup
+            // We can't remove immediately because the RST needs to be transmitted
+            // in the next poll_egress cycle
+            _ => {
+                socket.abort();
+                inner.orphaned_closing.push(self.handle);
+            }
         }
-
-        // Remove from socket set
-        inner.sockets.remove(self.handle);
     }
 }
 

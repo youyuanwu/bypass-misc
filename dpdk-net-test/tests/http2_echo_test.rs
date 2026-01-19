@@ -10,107 +10,26 @@ use dpdk_net::BoxError;
 use dpdk_net::tcp::async_net::TokioTcpStream;
 use dpdk_net::tcp::{Reactor, ReactorHandle, TcpListener, TcpStream};
 
+use dpdk_net_test::app::http_server::{Http2Server, LocalExecutor, echo_service};
 use dpdk_net_test::dpdk_test::DpdkTestContextBuilder;
 
 use http_body_util::{BodyExt, Full};
-use hyper::body::{Bytes, Incoming};
+use hyper::Request;
+use hyper::body::Bytes;
 use hyper::client::conn::http2 as client_http2;
-use hyper::server::conn::http2 as server_http2;
-use hyper::service::service_fn;
-use hyper::{Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 
 use smoltcp::iface::{Config, Interface};
 use smoltcp::time::Instant;
 use smoltcp::wire::{EthernetAddress, IpAddress, IpCidr, Ipv4Address};
 
-use std::future::Future;
 use tokio::runtime::Builder;
+use tokio_util::sync::CancellationToken;
 
 const SERVER_PORT: u16 = 8080;
 const SERVER_IP: Ipv4Address = Ipv4Address::new(192, 168, 1, 1);
 
-/// HTTP echo service handler - echoes the request body back
-async fn echo_service(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, hyper::Error> {
-    let method = req.method().clone();
-    let uri = req.uri().clone();
-    println!("Server: {} {}", method, uri);
-
-    // Collect the request body
-    let body_bytes = req.collect().await?.to_bytes();
-    println!("Server: received {} bytes", body_bytes.len());
-
-    // Echo it back
-    let response = Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "text/plain")
-        .body(Full::new(body_bytes))
-        .unwrap();
-
-    Ok(response)
-}
-
-/// Run the HTTP/2 server: accept connections and serve
-async fn run_http2_server<F: Future<Output = ()>>(mut listener: TcpListener, shutdown: F) {
-    println!("HTTP/2 Server: listening on {}:{}", SERVER_IP, SERVER_PORT);
-
-    tokio::pin!(shutdown);
-
-    let mut conn_id = 0usize;
-    loop {
-        tokio::select! {
-            _ = &mut shutdown => {
-                println!("HTTP/2 Server: shutdown signal received");
-                break;
-            }
-            result = listener.accept() => {
-                match result {
-                    Ok(stream) => {
-                        let id = conn_id;
-                        conn_id += 1;
-                        println!("HTTP/2 Server: accepted connection {}", id);
-
-                        // Wrap in TokioTcpStream, then TokioIo for hyper compatibility
-                        let io = TokioIo::new(TokioTcpStream::new(stream));
-
-                        // Spawn HTTP/2 connection handler
-                        tokio::task::spawn_local(async move {
-                            let result = server_http2::Builder::new(LocalExecutor)
-                                .serve_connection(io, service_fn(echo_service))
-                                .await;
-
-                            match result {
-                                Ok(()) => println!("HTTP/2 Server {}: connection closed", id),
-                                Err(e) => eprintln!("HTTP/2 Server {}: error: {}", id, e),
-                            }
-                        });
-                    }
-                    Err(e) => {
-                        eprintln!("HTTP/2 Server: accept failed: {:?}", e);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// A local executor for hyper that uses spawn_local instead of spawn.
-///
-/// Since our TcpStream is !Send (uses Rc), we need an executor that
-/// spawns tasks on the local thread.
-#[derive(Clone, Copy)]
-struct LocalExecutor;
-
-impl<F> hyper::rt::Executor<F> for LocalExecutor
-where
-    F: std::future::Future + 'static,
-    F::Output: 'static,
-{
-    fn execute(&self, fut: F) {
-        tokio::task::spawn_local(fut);
-    }
-}
+// Using Http2Server with echo_service from dpdk_net_test::app::http_server
 
 /// Run a single HTTP/2 client: connect, send POST request, verify response
 async fn run_http2_client(
@@ -212,13 +131,12 @@ async fn run_http2_test(
         num_clients
     );
 
-    // Create shutdown channel
-    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+    // Create cancellation token for shutdown
+    let cancel = CancellationToken::new();
 
-    // Spawn HTTP/2 server
-    let server_handle = tokio::task::spawn_local(run_http2_server(listener, async {
-        let _ = shutdown_rx.await;
-    }));
+    // Create and spawn HTTP/2 server
+    let server = Http2Server::new(listener, cancel.clone(), echo_service, 0, SERVER_PORT);
+    let server_handle = tokio::task::spawn_local(server.run());
 
     // Spawn client tasks
     let mut client_handles = Vec::with_capacity(num_clients);
@@ -243,7 +161,7 @@ async fn run_http2_test(
     }
 
     // Signal server to shutdown
-    let _ = shutdown_tx.send(());
+    cancel.cancel();
 
     // Wait for server
     match server_handle.await {

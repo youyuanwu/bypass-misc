@@ -10,112 +10,27 @@ use dpdk_net::BoxError;
 use dpdk_net::tcp::async_net::TokioTcpStream;
 use dpdk_net::tcp::{Reactor, ReactorHandle, TcpListener, TcpStream};
 
+use dpdk_net_test::app::http_server::{HttpAutoServer, LocalExecutor, echo_service};
 use dpdk_net_test::dpdk_test::DpdkTestContextBuilder;
 
 use http_body_util::{BodyExt, Full};
 use hyper::body::{Bytes, Incoming};
 use hyper::client::conn::http1 as client_http1;
 use hyper::client::conn::http2 as client_http2;
-use hyper::service::service_fn;
-use hyper::{Request, Response, StatusCode};
+use hyper::{Request, Response};
 use hyper_util::rt::TokioIo;
-use hyper_util::server::conn::auto::Builder as AutoBuilder;
 
 use smoltcp::iface::{Config, Interface};
 use smoltcp::time::Instant;
 use smoltcp::wire::{EthernetAddress, IpAddress, IpCidr, Ipv4Address};
 
-use std::future::Future;
 use tokio::runtime::Builder;
+use tokio_util::sync::CancellationToken;
 
 const SERVER_PORT: u16 = 8080;
 const SERVER_IP: Ipv4Address = Ipv4Address::new(192, 168, 1, 1);
 
-/// HTTP echo service handler - echoes the request body back
-async fn echo_service(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, hyper::Error> {
-    let method = req.method().clone();
-    let uri = req.uri().clone();
-    let version = req.version();
-    println!("Server: {:?} {} {}", version, method, uri);
-
-    // Collect the request body
-    let body_bytes = req.collect().await?.to_bytes();
-    println!("Server: received {} bytes", body_bytes.len());
-
-    // Echo it back
-    let response = Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "text/plain")
-        .body(Full::new(body_bytes))
-        .unwrap();
-
-    Ok(response)
-}
-
-/// A local executor for hyper that uses spawn_local instead of spawn.
-///
-/// Since our TcpStream is !Send (uses Rc), we need an executor that
-/// spawns tasks on the local thread.
-#[derive(Clone, Copy)]
-struct LocalExecutor;
-
-impl<F> hyper::rt::Executor<F> for LocalExecutor
-where
-    F: std::future::Future + 'static,
-    F::Output: 'static,
-{
-    fn execute(&self, fut: F) {
-        tokio::task::spawn_local(fut);
-    }
-}
-
-/// Run the HTTP/1+2 auto server: accept connections and serve both protocols
-async fn run_auto_server<F: Future<Output = ()>>(mut listener: TcpListener, shutdown: F) {
-    println!(
-        "HTTP/1+2 Auto Server: listening on {}:{}",
-        SERVER_IP, SERVER_PORT
-    );
-
-    tokio::pin!(shutdown);
-
-    let mut conn_id = 0usize;
-    loop {
-        tokio::select! {
-            _ = &mut shutdown => {
-                println!("HTTP/1+2 Auto Server: shutdown signal received");
-                break;
-            }
-            result = listener.accept() => {
-                match result {
-                    Ok(stream) => {
-                        let id = conn_id;
-                        conn_id += 1;
-                        println!("HTTP/1+2 Auto Server: accepted connection {}", id);
-
-                        // Wrap in TokioTcpStream, then TokioIo for hyper compatibility
-                        let io = TokioIo::new(TokioTcpStream::new(stream));
-
-                        // Spawn auto HTTP connection handler (handles both HTTP/1 and HTTP/2)
-                        tokio::task::spawn_local(async move {
-                            let result = AutoBuilder::new(LocalExecutor)
-                                .serve_connection(io, service_fn(echo_service))
-                                .await;
-
-                            match result {
-                                Ok(()) => println!("HTTP/1+2 Auto Server {}: connection closed", id),
-                                Err(e) => eprintln!("HTTP/1+2 Auto Server {}: error: {}", id, e),
-                            }
-                        });
-                    }
-                    Err(e) => {
-                        eprintln!("HTTP/1+2 Auto Server: accept failed: {:?}", e);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-}
+// Using HttpAutoServer with echo_service from dpdk_net_test::app::http_server
 
 /// Protocol version for client
 #[derive(Clone, Copy, Debug)]
@@ -277,13 +192,12 @@ async fn run_auto_test(
         total_clients, num_clients_per_version, num_clients_per_version
     );
 
-    // Create shutdown channel
-    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+    // Create cancellation token for shutdown
+    let cancel = CancellationToken::new();
 
-    // Spawn auto server
-    let server_handle = tokio::task::spawn_local(run_auto_server(listener, async {
-        let _ = shutdown_rx.await;
-    }));
+    // Create and spawn HTTP auto server
+    let server = HttpAutoServer::new(listener, cancel.clone(), echo_service, 0, SERVER_PORT);
+    let server_handle = tokio::task::spawn_local(server.run());
 
     // Spawn client tasks - alternating HTTP/1 and HTTP/2
     let mut client_handles = Vec::with_capacity(total_clients);
@@ -320,7 +234,7 @@ async fn run_auto_test(
     }
 
     // Signal server to shutdown
-    let _ = shutdown_tx.send(());
+    cancel.cancel();
 
     // Wait for server
     match server_handle.await {

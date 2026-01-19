@@ -11,12 +11,16 @@ package.repository = "https://github.com/youyuanwu/rust-dpdk-net"
 package.license = "MIT"
 
 [workspace.dependencies]
+clap = { version = "4", features = ["derive"] }
 ctrlc = "3"
 smoltcp = { version = "0.12", features = ["async"] }
 arrayvec = "0.7"
 serial_test = "3"
 nix = { version = "0.30", features = [] }
 tokio = { version = "1", default-features = false, features = [] }
+tokio-util = "0.7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 hyper = { version = "1", features = ["http1", "http2", "server", "client"] }
 http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["tokio", "server-auto"] }
