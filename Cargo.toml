@@ -12,7 +12,7 @@ package.license = "MIT"
 
 [workspace.dependencies]
 clap = { version = "4", features = ["derive"] }
-ctrlc = "3"
+ctrlc = { version = "3", features = ["termination"] }
 smoltcp = { version = "0.12", features = ["async"] }
 arrayvec = "0.7"
 serial_test = "3"

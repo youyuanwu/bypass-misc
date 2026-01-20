@@ -1,0 +1,234 @@
+---
+# HTTP Server Test - Run DPDK HTTP server on VM1, test from VM2
+- name: Setup HTTP Server Test
+  hosts: vm1
+  become: true
+
+  vars:
+    project_root: "{{ playbook_dir }}/../../../"
+    http_server_local: "{{ project_root }}/target/release/examples/dpdk_http_server"
+    http_server_remote: /home/azureuser/dpdk_http_server
+
+  tasks:
+    - name: Get local binary checksum
+      ansible.builtin.stat:
+        path: "{{ http_server_local }}"
+        checksum_algorithm: md5
+      register: local_binary
+      delegate_to: localhost
+      become: false
+
+    - name: Get remote binary checksum
+      ansible.builtin.stat:
+        path: "{{ http_server_remote }}"
+        checksum_algorithm: md5
+      register: remote_binary
+
+    - name: Copy dpdk_http_server to VM (if missing or hash mismatch)
+      ansible.builtin.copy:
+        src: "{{ http_server_local }}"
+        dest: "{{ http_server_remote }}"
+        mode: '0755'
+      when: not remote_binary.stat.exists or (remote_binary.stat.checksum != local_binary.stat.checksum)
+
+    - name: Verify binary copied
+      ansible.builtin.shell: |
+        ls -la {{ http_server_remote }}
+        file {{ http_server_remote }}
+      register: binary_info
+      changed_when: false
+
+    - name: Display binary info
+      ansible.builtin.debug:
+        msg: "{{ binary_info.stdout_lines }}"
+
+- name: Setup Test Tools on VM2
+  hosts: vm2
+  become: true
+
+  tasks:
+    - name: Check if wrk is installed
+      ansible.builtin.shell: which wrk
+      register: wrk_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Install wrk
+      ansible.builtin.apt:
+        name: wrk
+        state: present
+        update_cache: true
+      when: wrk_check.rc != 0
+
+    - name: Verify wrk installation
+      ansible.builtin.shell: wrk --version 2>&1 | head -1
+      register: wrk_version
+      changed_when: false
+
+    - name: Display wrk version
+      ansible.builtin.debug:
+        msg: "{{ wrk_version.stdout }}"
+
+- name: Run HTTP Server Test with Cleanup
+  hosts: vm1
+  become: true
+
+  vars:
+    project_root: "{{ playbook_dir }}/../../../"
+    build_dir: "{{ project_root }}/build"
+    http_server_remote: /home/azureuser/dpdk_http_server
+    server_port: 8080
+    vm1_private_ip: "{{ hostvars['vm1'].private_ip2 | default(hostvars['vm1'].private_ip) }}"
+
+  tasks:
+    - name: Run test with guaranteed cleanup
+      block:
+        - name: Kill any existing dpdk_http_server
+          ansible.builtin.shell: killall dpdk_http_server 2>/dev/null; exit 0
+          changed_when: false
+
+        - name: Ensure hugepages are configured
+          ansible.builtin.shell: |
+            echo 1024 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
+            mkdir -p /mnt/huge
+            mount -t hugetlbfs nodev /mnt/huge 2>/dev/null || true
+          changed_when: false
+
+        - name: Start HTTP server in background
+          ansible.builtin.shell: |
+            cd /home/azureuser
+            nohup {{ http_server_remote }} > /tmp/dpdk_http_server.log 2>&1 &
+            echo $!
+          register: server_pid
+          changed_when: true
+
+        - name: Display server PID
+          ansible.builtin.debug:
+            msg: "HTTP server started with PID: {{ server_pid.stdout }}"
+
+        - name: Wait for server to start
+          ansible.builtin.pause:
+            seconds: 3
+
+        - name: Check server is running
+          ansible.builtin.shell: |
+            ps aux | grep dpdk_http_server | grep -v grep || echo "Server not running"
+            echo "---"
+            cat /tmp/dpdk_http_server.log 2>/dev/null | tail -20 || echo "No log file yet"
+          register: server_status
+          changed_when: false
+
+        - name: Display server status
+          ansible.builtin.debug:
+            msg: "{{ server_status.stdout_lines }}"
+
+        # Test from VM2 using delegation
+        - name: Wait for server to be ready
+          ansible.builtin.pause:
+            seconds: 3
+
+        - name: Test with curl - basic request (from VM2)
+          ansible.builtin.shell: |
+            curl -o /dev/null -s --fail --connect-timeout 5 --max-time 10 http://{{ vm1_private_ip }}:{{ server_port }}/
+          register: curl_result
+          changed_when: false
+          retries: 7
+          delay: 2
+          until: curl_result.rc == 0
+          delegate_to: vm2
+
+        - name: Test with curl - multiple requests (from VM2)
+          ansible.builtin.shell: |
+            for i in 1 2 3; do
+              curl -o /dev/null -s --fail --connect-timeout 5 --max-time 10 http://{{ vm1_private_ip }}:{{ server_port }}/
+              echo "Request $i: OK"
+            done
+          changed_when: false
+          delegate_to: vm2
+
+        - name: Create benchmark output directory on VM2
+          ansible.builtin.file:
+            path: /tmp/benchmarks
+            state: directory
+            mode: '0755'
+          delegate_to: vm2
+
+        - name: Run wrk benchmark matrix (from VM2)
+          ansible.builtin.shell: |
+            echo "=== Benchmark: {{ item.threads }} threads, {{ item.connections }} connections ==="
+            wrk -t{{ item.threads }} -c{{ item.connections }} -d30s http://{{ vm1_private_ip }}:{{ server_port }}/ 2>&1 | tee /tmp/benchmarks/wrk_t{{ item.threads }}_c{{ item.connections }}.txt
+          register: wrk_results
+          changed_when: false
+          delegate_to: vm2
+          loop:
+            - { threads: 2, connections: 10 }
+            - { threads: 2, connections: 50 }
+            - { threads: 2, connections: 100 }
+            - { threads: 2, connections: 200 }
+            - { threads: 2, connections: 500 }
+          loop_control:
+            label: "t{{ item.threads }}-c{{ item.connections }}"
+
+        - name: Display wrk benchmark results
+          ansible.builtin.debug:
+            msg: "{{ item.stdout_lines }}"
+          loop: "{{ wrk_results.results }}"
+          loop_control:
+            label: "{{ item.item.threads }}t-{{ item.item.connections }}c"
+
+        - name: Generate benchmark summary on VM2
+          ansible.builtin.shell: |
+            cd /tmp/benchmarks
+            echo "Benchmark Summary - $(date -Iseconds)" > summary.txt
+            echo "======================================" >> summary.txt
+            for f in wrk_t*.txt; do
+              echo "" >> summary.txt
+              echo "--- $f ---" >> summary.txt
+              grep -E "Requests/sec|Transfer/sec|Latency|Thread Stats" "$f" >> summary.txt || true
+            done
+            cat summary.txt
+          register: benchmark_summary
+          changed_when: false
+          delegate_to: vm2
+
+        - name: Fetch benchmark results to local build directory
+          ansible.builtin.fetch:
+            src: "/tmp/benchmarks/{{ item }}"
+            dest: "{{ build_dir }}/benchmarks/"
+            flat: true
+          delegate_to: vm2
+          loop:
+            - wrk_t2_c10.txt
+            - wrk_t2_c50.txt
+            - wrk_t2_c100.txt
+            - wrk_t2_c200.txt
+            - wrk_t2_c500.txt
+            - summary.txt
+          ignore_errors: true
+
+      always:
+        # Cleanup always runs, even if tests fail
+        - name: Stop HTTP server (send SIGTERM)
+          ansible.builtin.shell: |
+            pid=$(pidof dpdk_http_server) || true
+            if [ -n "$pid" ]; then
+              kill -TERM $pid 2>/dev/null || true
+              for i in 1 2 3 4 5; do
+                kill -0 $pid 2>/dev/null || break
+                sleep 1
+              done
+              kill -9 $pid 2>/dev/null || true
+            fi
+            sleep 1
+          changed_when: false
+
+        - name: Show final server log
+          ansible.builtin.shell: cat /tmp/dpdk_http_server.log 2>/dev/null | tail -50 || echo "No log"
+          changed_when: false
+
+        - name: Fetch server log to local build directory
+          ansible.builtin.fetch:
+            src: /tmp/dpdk_http_server.log
+            dest: "{{ build_dir }}/dpdk_http_server.log"
+            flat: true
+          ignore_errors: true

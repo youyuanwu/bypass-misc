@@ -1,0 +1,81 @@
+---
+# Full test suite: setup + run tests
+- name: Import DPDK Setup
+  ansible.builtin.import_playbook: setup_dpdk.yml
+
+- name: Run DPDK Tests
+  hosts: vm1
+  become: true
+
+  tasks:
+    - name: Test DPDK testpmd (basic check)
+      ansible.builtin.shell: |
+        # Check if testpmd exists and can show version
+        if command -v dpdk-testpmd &> /dev/null; then
+          dpdk-testpmd --version 2>&1 || echo "testpmd available"
+        else
+          echo "dpdk-testpmd not found in PATH, checking /usr/local/bin"
+          ls -la /usr/local/bin/dpdk-* 2>/dev/null || echo "No dpdk binaries found"
+        fi
+      register: testpmd_check
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display testpmd check result
+      ansible.builtin.debug:
+        msg: "{{ testpmd_check.stdout_lines }}"
+
+    - name: Check DPDK device bindings
+      ansible.builtin.shell: |
+        # Look for dpdk-devbind script
+        DEVBIND=$(find /usr/local -name "dpdk-devbind.py" 2>/dev/null | head -1)
+        if [ -n "$DEVBIND" ]; then
+          python3 "$DEVBIND" --status
+        else
+          echo "dpdk-devbind.py not found"
+          echo "Network interfaces:"
+          ip link show
+        fi
+      register: devbind_result
+      changed_when: false
+
+    - name: Display device bindings
+      ansible.builtin.debug:
+        msg: "{{ devbind_result.stdout_lines }}"
+
+    - name: Test basic DPDK EAL initialization
+      ansible.builtin.shell: |
+        # Try to run a simple DPDK check with hugepages
+        cd /tmp
+        if command -v dpdk-testpmd &> /dev/null; then
+          # Use hugepages (configured by setup_dpdk.yml), limit memory to 256MB
+          timeout 5 dpdk-testpmd -l 0-1 -m 256 --vdev=net_null0 -- -i 2>&1 || echo "EAL init test completed"
+        else
+          echo "Skipping EAL test - dpdk-testpmd not in PATH"
+        fi
+      register: eal_test
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display EAL test result
+      ansible.builtin.debug:
+        msg: "{{ eal_test.stdout_lines }}"
+
+- name: Cross-VM Connectivity Test  
+  hosts: vms
+  gather_facts: false
+
+  tasks:
+    - name: Ping other VMs via private IP
+      ansible.builtin.shell: |
+        ping -c 3 {{ hostvars[item].private_ip }}
+      loop: "{{ groups['vms'] }}"
+      when: item != inventory_hostname
+      register: ping_results
+      ignore_errors: true
+
+    - name: Display ping results
+      ansible.builtin.debug:
+        msg: "Ping to {{ item.item }}: {{ 'SUCCESS' if item.rc == 0 else 'FAILED' }}"
+      loop: "{{ ping_results.results }}"
+      when: item.rc is defined

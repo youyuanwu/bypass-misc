@@ -18,12 +18,19 @@ pub fn get_pci_addr(interface: &str) -> Option<String> {
     let link = fs::read_link(&path).ok()?;
     let filename = link.file_name()?.to_str()?;
 
-    // Check if this is a PCI device directly
+    // Check if this is a PCI device directly (e.g., mlx5 interface)
     if filename.contains(':') && filename.contains('.') {
+        tracing::debug!(interface, pci_addr = filename, "Found PCI address directly");
         return Some(filename.to_string());
     }
 
-    // If not a PCI device, look for lower_ links (bonded/virtual interfaces)
+    tracing::debug!(
+        interface,
+        device = filename,
+        "Device is not PCI, checking for lower_ links"
+    );
+
+    // If not a PCI device (e.g., hv_netvsc on Azure), look for lower_ links to find the slave VF
     let net_dir = format!("/sys/class/net/{}", interface);
     if let Ok(entries) = fs::read_dir(&net_dir) {
         for entry in entries.flatten() {
@@ -31,14 +38,27 @@ pub fn get_pci_addr(interface: &str) -> Option<String> {
             if let Some(name_str) = name.to_str()
                 && name_str.starts_with("lower_")
             {
+                tracing::debug!(interface, lower_link = name_str, "Found lower link");
                 // Follow the lower link to the actual device
                 if let Ok(lower_link) = fs::read_link(entry.path()) {
-                    // Extract PCI address from path like: ../../../pci79ba:00/79ba:00:02.0/net/enP31162s2
+                    // Extract PCI address from path like: ../../../.../c167:00:02.0/net/enP49511s2
                     let path_str = lower_link.to_str()?;
+                    tracing::debug!(interface, path = path_str, "Lower link target");
                     for component in path_str.split('/') {
-                        // 79ba:00:02.0
+                        // Match PCI address pattern: XXXX:XX:XX.X (domain:bus:device.function)
                         if component.contains(':') && component.contains('.') {
-                            return Some(component.to_string());
+                            // Verify it looks like a PCI address (not a GUID)
+                            let parts: Vec<&str> = component.split(':').collect();
+                            if parts.len() >= 2
+                                && parts.last().map(|s| s.contains('.')).unwrap_or(false)
+                            {
+                                tracing::info!(
+                                    interface,
+                                    pci_addr = component,
+                                    "Found PCI address via lower link"
+                                );
+                                return Some(component.to_string());
+                            }
                         }
                     }
                 }
@@ -46,6 +66,7 @@ pub fn get_pci_addr(interface: &str) -> Option<String> {
         }
     }
 
+    tracing::warn!(interface, "Could not find PCI address");
     None
 }
 

@@ -265,6 +265,7 @@ impl EalBuilder {
     /// Returns an RAII guard that cleans up EAL on drop.
     pub fn init(self) -> crate::api::Result<Eal> {
         let args = self.build_args();
+        tracing::info!(args = ?args, "Initializing EAL");
         Eal::init(args)
     }
 }

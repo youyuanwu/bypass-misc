@@ -190,10 +190,12 @@ fn run_dpdk_server(interface: &str, port: u16, max_queues: usize, backlog: usize
 
 fn main() {
     // Initialize tracing - respects RUST_LOG, defaults to info if not set
+    // Disable ANSI colors for clean log output
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
+        .with_ansi(false)
         .init();
 
     let args = Args::parse();

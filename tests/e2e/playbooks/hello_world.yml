@@ -1,0 +1,33 @@
+---
+# Hello World test - basic connectivity check
+- name: Hello World Test
+  hosts: vms
+  gather_facts: true
+
+  tasks:
+    - name: Echo hello world
+      ansible.builtin.shell: echo "Hello from $(hostname) at $(date)"
+      register: hello_result
+
+    - name: Display hello result
+      ansible.builtin.debug:
+        msg: "{{ hello_result.stdout }}"
+
+    - name: Show VM info
+      ansible.builtin.debug:
+        msg: |
+          VM Name: {{ vm_name }}
+          Public IP: {{ ansible_host }}
+          Private IP: {{ private_ip }}
+          OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+          Kernel: {{ ansible_facts['kernel'] }}
+
+    - name: Test private network connectivity (from each VM)
+      ansible.builtin.shell: |
+        echo "Testing connectivity from {{ private_ip }}..."
+        ip addr show | grep -E "inet [0-9]"
+      register: network_info
+
+    - name: Display network info
+      ansible.builtin.debug:
+        msg: "{{ network_info.stdout_lines }}"
