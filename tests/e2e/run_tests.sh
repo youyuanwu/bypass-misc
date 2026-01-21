@@ -1,6 +1,7 @@
 #!/bin/bash
 # Run Ansible E2E tests
 # Usage: ./run_tests.sh [playbook]
+#        ./tests/e2e/run_tests.sh [playbook]  (from repo root)
 
 set -e
 
@@ -10,8 +11,10 @@ cd "$SCRIPT_DIR"
 # Make inventory executable
 chmod +x inventory.py
 
-# Default playbook
-PLAYBOOK="${1:-playbooks/hello_world.yml}"
+# Default playbook - handle both relative and absolute paths
+PLAYBOOK_ARG="${1:-playbooks/hello_world.yml}"
+# If playbook path starts with tests/e2e/, strip it (for running from repo root)
+PLAYBOOK="${PLAYBOOK_ARG#tests/e2e/}"
 shift 2>/dev/null || true  # Remove playbook from args, ignore error if no args
 
 echo "=== Running Ansible E2E Tests ==="

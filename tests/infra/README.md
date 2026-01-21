@@ -17,7 +17,7 @@ az group create --name $rg --location westus2
 ```sh
 az deployment group create \
   --resource-group $rg \
-  --template-file docs/main.bicep \
+  --template-file tests/infra/main.bicep \
   --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)"
 ```
 
@@ -26,7 +26,7 @@ az deployment group create \
 ```sh
 az deployment group create \
   --resource-group $rg \
-  --template-file docs/main.bicep \
+  --template-file tests/infra/main.bicep \
   --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)" \
                nicsPerVm=2
 ```
@@ -38,7 +38,7 @@ Both VMs are in the same subnet and can communicate via private IPs.
 ```sh
 az deployment group create \
   --resource-group $rg \
-  --template-file docs/main.bicep \
+  --template-file tests/infra/main.bicep \
   --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)" \
                vmCount=2
 ```
@@ -48,7 +48,7 @@ az deployment group create \
 ```sh
 az deployment group create \
   --resource-group $rg \
-  --template-file docs/main.bicep \
+  --template-file tests/infra/main.bicep \
   --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)" \
                vmCount=2 \
                nicsPerVm=2
@@ -93,7 +93,7 @@ ssh 10.0.0.5  # or 10.0.0.6 if using 2 NICs per VM
 az group delete --name $rg --yes --no-wait
 ```
 
-## MSIC
+## MISC
 ```sh
-az bicep lint --file ./docs/main.bicep 
+az bicep lint --file ./tests/infra/main.bicep 
 ```

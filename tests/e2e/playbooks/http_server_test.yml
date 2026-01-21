@@ -110,6 +110,7 @@
         - name: Start HTTP server in background
           ansible.builtin.shell: |
             cd /home/azureuser
+            export LD_LIBRARY_PATH=/usr/local/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
             nohup {{ http_server_remote }} {{ server_start_opts }} > /tmp/dpdk_http_server.log 2>&1 &
             echo $!
           register: server_pid
@@ -125,9 +126,14 @@
 
         - name: Check server is running
           ansible.builtin.shell: |
-            ps aux | grep dpdk_http_server | grep -v grep || echo "Server not running"
-            echo "---"
-            cat /tmp/dpdk_http_server.log 2>/dev/null | tail -20 || echo "No log file yet"
+            echo "--- Checking for dpdk_http_server process ---"
+            ps aux | grep dpdk_http_server | grep -v grep
+            if [ $? -ne 0 ]; then
+              echo "ERROR: Server not running!"
+              echo "--- Server log ---"
+              cat /tmp/dpdk_http_server.log 2>/dev/null | tail -30 || echo "No log file"
+              exit 1
+            fi
           register: server_status
           changed_when: false
 

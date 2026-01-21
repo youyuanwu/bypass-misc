@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Dynamic Ansible inventory that reads VM IPs from Azure deployment outputs.
-Reads from: build/docs/azure-deployment-outputs.json
+Reads from: build/tests/infra/azure-deployment-outputs.json
 """
 
 import json
@@ -11,13 +11,13 @@ from pathlib import Path
 
 def get_outputs_file():
     """Find the Azure deployment outputs file."""
-    # Try relative to this script (tests/e2e -> project root -> build/docs)
+    # Try relative to this script (tests/e2e -> project root -> build/tests/infra)
     script_dir = Path(__file__).parent
     project_root = script_dir.parent.parent
     
     # Check common locations
     candidates = [
-        project_root / "build" / "docs" / "azure-deployment-outputs.json",
+        project_root / "build" / "tests" / "infra" / "azure-deployment-outputs.json",
         project_root / "build" / "azure-deployment-outputs.json",
         Path(os.environ.get("OUTPUTS_FILE", "")),
     ]

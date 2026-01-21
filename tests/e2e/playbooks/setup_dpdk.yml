@@ -7,9 +7,10 @@
   vars:
     # playbook_dir is tests/e2e/playbooks, go up 3 levels to project root
     project_root: "{{ playbook_dir }}/../../../"
-    dpdk_deb_local: "{{ project_root }}/build/dpdk_22.11.11_amd64.deb"
-    dpdk_deb_remote: /tmp/dpdk_22.11.11_amd64.deb
+    dpdk_deb_local: "{{ project_root }}/build/dpdk-net_22.11.11_amd64.deb"
+    dpdk_deb_remote: /tmp/dpdk-net_22.11.11_amd64.deb
     dpdk_version: "22.11.11"
+    dpdk_pkg_name: "dpdk-net"
 
   tasks:
     - name: Get local deb checksum
@@ -52,12 +53,15 @@
         state: present
         update_cache: true
 
-    - name: Remove old DPDK package (if deb changed)
+    - name: Remove old DPDK packages (if deb changed)
       ansible.builtin.apt:
-        name: dpdk
+        name:
+          - dpdk
+          - dpdk-net
         state: absent
         purge: true
       when: deb_needs_update
+      ignore_errors: true
 
     - name: Install DPDK from deb
       ansible.builtin.apt:
@@ -72,7 +76,7 @@
     - name: Verify DPDK installation
       ansible.builtin.shell: |
         echo "=== DPDK Package Info ==="
-        dpkg -l dpdk
+        dpkg -l {{ dpdk_pkg_name }}
         echo ""
         echo "=== DPDK Libraries ==="
         ls -la /usr/local/lib/x86_64-linux-gnu/librte*.so.* 2>/dev/null | head -5 || echo "Libraries in different location"

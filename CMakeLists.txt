@@ -109,15 +109,15 @@ add_custom_target(dpdk_deb
   COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg/DEBIAN
   COMMAND ${CMAKE_COMMAND} -E env DESTDIR=${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg ninja -C ${dpdk_BINARY_DIR} install
-  COMMAND ${CMAKE_COMMAND} -E echo "Package: dpdk" > ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg/DEBIAN/control
+  COMMAND ${CMAKE_COMMAND} -E echo "Package: dpdk-net" > ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg/DEBIAN/control
   COMMAND ${CMAKE_COMMAND} -E echo "Version: 22.11.11" >> ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg/DEBIAN/control
   COMMAND ${CMAKE_COMMAND} -E echo "Section: libs" >> ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg/DEBIAN/control
   COMMAND ${CMAKE_COMMAND} -E echo "Priority: optional" >> ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg/DEBIAN/control
   COMMAND ${CMAKE_COMMAND} -E echo "Architecture: amd64" >> ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg/DEBIAN/control
   COMMAND ${CMAKE_COMMAND} -E echo "Depends: libc6, libnuma1, libelf1t64 | libelf1, zlib1g, libzstd1, libssl3t64 | libssl3, libatomic1, rdma-core, libibverbs1, libmlx5-1, librdmacm1" >> ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg/DEBIAN/control
   COMMAND ${CMAKE_COMMAND} -E echo "Maintainer: maintainer@example.com" >> ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg/DEBIAN/control
-  COMMAND ${CMAKE_COMMAND} -E echo "Description: Data Plane Development Kit with Mellanox mlx5 support" >> ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg/DEBIAN/control
-  COMMAND dpkg-deb --build ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg ${CMAKE_CURRENT_BINARY_DIR}/dpdk_22.11.11_amd64.deb
+  COMMAND ${CMAKE_COMMAND} -E echo "Description: Data Plane Development Kit with Mellanox mlx5 support (custom build for dpdk-net)" >> ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg/DEBIAN/control
+  COMMAND dpkg-deb --build ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg ${CMAKE_CURRENT_BINARY_DIR}/dpdk-net_22.11.11_amd64.deb
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   COMMENT "Creating DPDK .deb package (staged, no system install)"
   DEPENDS dpdk_build
@@ -144,4 +144,4 @@ add_custom_target(dpdk_run_example
   VERBATIM
 )
 
-add_subdirectory(docs)
+add_subdirectory(tests/infra)

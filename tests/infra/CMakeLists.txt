@@ -39,7 +39,7 @@ add_custom_target(azure_vm_deploy
 )
 
 # Get deployment outputs (after deployment) - refreshes from Azure
-add_custom_target(azure_vm_outputs
+add_custom_target(azure_vm_save_outputs
   COMMAND az deployment group show
     --resource-group ${AZURE_RG}
     --name main
