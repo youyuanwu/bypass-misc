@@ -85,7 +85,7 @@
     # Server mode: 'dpdk' (default) or 'tokio' - passed via -e server_mode=tokio
     _server_mode: "{{ server_mode | default('dpdk') }}"
     # Server start options based on mode
-    server_start_opts: "{{ '--mode tokio' if (server_mode | default('dpdk')) == 'tokio' else '' }}"
+    server_start_opts: "{{ '--mode tokio' if (server_mode | default('dpdk')) == 'tokio' else '--backlog 200' }}"
     # IP address: NIC2 for DPDK, NIC1 for Tokio
     vm1_private_ip: "{{ hostvars['vm1'].private_ip if (server_mode | default('dpdk')) == 'tokio' else (hostvars['vm1'].private_ip2 | default(hostvars['vm1'].private_ip)) }}"
 
@@ -97,7 +97,7 @@
             msg: "server_mode={{ server_mode | default('NOT SET') }}, _server_mode={{ _server_mode }}, server_start_opts='{{ server_start_opts }}', vm1_private_ip={{ vm1_private_ip }}"
 
         - name: Kill any existing dpdk_http_server
-          ansible.builtin.shell: killall dpdk_http_server 2>/dev/null; exit 0
+          ansible.builtin.shell: killall -9 dpdk_http_server 2>/dev/null; exit 0
           changed_when: false
 
         - name: Ensure hugepages are configured

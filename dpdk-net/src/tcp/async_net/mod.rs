@@ -264,7 +264,7 @@ impl Reactor<DpdkDeviceWithPool> {
             let timestamp = Instant::now();
             let mut packets_processed = 0;
 
-            // Process ingress in batches, yielding between batches
+            // Process ingress in batches
             loop {
                 let result = {
                     let mut inner = self.inner.borrow_mut();
@@ -276,9 +276,9 @@ impl Reactor<DpdkDeviceWithPool> {
                     _ => {
                         packets_processed += 1;
                         if packets_processed >= batch_size {
-                            // Yield after processing a batch
-                            R::yield_now().await;
-                            packets_processed = 0;
+                            // Hit batch limit - break to run egress before yielding
+                            // This prevents DoS: we must send ACKs/responses, not just receive
+                            break;
                         }
                     }
                 }
@@ -296,7 +296,8 @@ impl Reactor<DpdkDeviceWithPool> {
                 inner.cleanup_orphaned();
             }
 
-            // Yield even when no packets, to avoid busy spinning
+            // Always yield to let other async tasks run (accept handlers, recv futures, etc.)
+            // Without this, spawned tasks would starve during idle periods
             R::yield_now().await;
         }
     }

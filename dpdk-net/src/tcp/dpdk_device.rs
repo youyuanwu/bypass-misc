@@ -51,8 +51,8 @@ pub struct DpdkDeviceWithPool {
     our_mac: Option<[u8; 6]>,
     /// Our IP address (for building ARP injection packets)  
     our_ip: Option<Ipv4Addr>,
-    /// IPs we've already injected from shared cache (avoid duplicates)
-    injected_ips: Vec<Ipv4Addr>,
+    /// Last seen cache size (skip injection if unchanged)
+    last_cache_len: usize,
 }
 
 impl DpdkDeviceWithPool {
@@ -94,7 +94,7 @@ impl DpdkDeviceWithPool {
             shared_arp_cache: None,
             our_mac: None,
             our_ip: None,
-            injected_ips: Vec::new(),
+            last_cache_len: 0,
         }
     }
 
@@ -150,8 +150,16 @@ impl DpdkDeviceWithPool {
     /// Check shared ARP cache and inject any new entries into our rx path.
     ///
     /// This allows other queues to learn MACs that queue 0 discovered.
+    /// Optimization: cache only grows, so skip if size unchanged.
+    /// Queue 0 skips injection - it receives ARP replies directly from network.
+    #[inline(always)]
     fn inject_from_shared_cache(&mut self) {
         use super::arp_cache::build_arp_reply_for_injection;
+
+        // Queue 0 receives ARP replies directly, no injection needed
+        if self.queue_id == 0 {
+            return;
+        }
 
         let (Some(cache), Some(our_mac), Some(our_ip)) =
             (&self.shared_arp_cache, self.our_mac, self.our_ip)
@@ -159,24 +167,29 @@ impl DpdkDeviceWithPool {
             return;
         };
 
+        // Fast path: skip if cache size unchanged (cache only grows)
+        let current_len = cache.len();
+        if current_len == self.last_cache_len {
+            return;
+        }
+
         // Load the current cache snapshot (lock-free)
         let cache_snapshot = cache.snapshot();
 
-        // Inject any IPs we haven't seen yet
+        // Inject all entries (we only get here when there are new ones)
+        // Re-injecting already-known entries is harmless - smoltcp deduplicates
         for (&ip, &mac) in cache_snapshot.iter() {
-            if !self.injected_ips.contains(&ip) {
-                // Build and inject ARP reply packet
-                let arp_packet = build_arp_reply_for_injection(our_mac, our_ip, mac, ip);
+            let arp_packet = build_arp_reply_for_injection(our_mac, our_ip, mac, ip);
 
-                if self.rx_batch.len() < self.rx_batch.capacity()
-                    && let Some(mut mbuf) = self.mempool.try_alloc()
-                    && mbuf.copy_from_slice(&arp_packet)
-                {
-                    self.rx_batch.push(mbuf);
-                    self.injected_ips.push(ip);
-                }
+            if self.rx_batch.len() < self.rx_batch.capacity()
+                && let Some(mut mbuf) = self.mempool.try_alloc()
+                && mbuf.copy_from_slice(&arp_packet)
+            {
+                self.rx_batch.push(mbuf);
             }
         }
+
+        self.last_cache_len = current_len;
     }
 
     fn flush_tx(&mut self) {

@@ -32,6 +32,7 @@ use arc_swap::ArcSwap;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// A MAC address (6 bytes).
 pub type MacAddress = [u8; 6];
@@ -41,9 +42,13 @@ pub type MacAddress = [u8; 6];
 /// Optimized for single-producer (queue 0) multi-consumer (all queues):
 /// - Reads: Lock-free atomic load
 /// - Writes: Copy-on-write with atomic store (no concurrent writer synchronization)
+/// - Length: Relaxed atomic for eventual consistency (avoids Arc load on hot path)
 #[derive(Clone)]
 pub struct SharedArpCache {
     inner: Arc<ArcSwap<HashMap<Ipv4Addr, MacAddress>>>,
+    /// Atomic length counter for fast eventual-consistency checks.
+    /// Updated on insert, readers use Relaxed ordering.
+    len: Arc<AtomicUsize>,
 }
 
 impl Default for SharedArpCache {
@@ -57,6 +62,7 @@ impl SharedArpCache {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(ArcSwap::from_pointee(HashMap::new())),
+            len: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -87,9 +93,13 @@ impl SharedArpCache {
         // Copy-on-write: clone and update
         let mut new_map = (**current).clone();
         new_map.insert(ip, mac);
+        let new_len = new_map.len();
 
         // Atomic store - safe because we're the only writer (SPMC)
         self.inner.store(Arc::new(new_map));
+
+        // Update length counter after map is visible (eventual consistency is fine)
+        self.len.store(new_len, Ordering::Release);
     }
 
     /// Check if an IP is in the cache.
@@ -100,10 +110,13 @@ impl SharedArpCache {
         self.inner.load().contains_key(ip)
     }
 
-    /// Get the number of entries.
-    #[inline]
+    /// Get the number of entries (eventual consistency).
+    ///
+    /// Uses relaxed atomic load - may be slightly stale but avoids
+    /// loading the full Arc on the hot path. Safe because cache only grows.
+    #[inline(always)]
     pub fn len(&self) -> usize {
-        self.inner.load().len()
+        self.len.load(Ordering::Relaxed)
     }
 
     /// Check if the cache is empty.
@@ -128,6 +141,7 @@ impl SharedArpCache {
 ///
 /// # Returns
 /// `Some((sender_ip, sender_mac))` if this is an ARP reply, `None` otherwise.
+#[inline(always)]
 pub fn parse_arp_reply(packet: &[u8]) -> Option<(Ipv4Addr, MacAddress)> {
     // Minimum ARP packet: Ethernet header (14) + ARP (28) = 42 bytes
     if packet.len() < 42 {

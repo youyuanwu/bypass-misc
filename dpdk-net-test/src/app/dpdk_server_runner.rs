@@ -37,7 +37,7 @@ use dpdk_net::api::rte::eal::EalBuilder;
 use dpdk_net::api::rte::eth::{EthConf, EthDev, EthDevBuilder, RxQueueConf, TxQueueConf};
 use dpdk_net::api::rte::pktmbuf::{MemPool, MemPoolConfig};
 use dpdk_net::api::rte::queue::{RxQueue, TxQueue};
-use dpdk_net::api::rte::thread::ThreadRegistration;
+use dpdk_net::api::rte::thread::{ThreadRegistration, set_cpu_affinity};
 use dpdk_net::tcp::{DpdkDeviceWithPool, Reactor, SharedArpCache, TcpListener};
 
 use smoltcp::iface::{Config, Interface};
@@ -270,6 +270,9 @@ impl DpdkServerRunner {
             None
         };
 
+        // Keep a reference for logging after shutdown
+        let arp_cache_for_stats = shared_arp_cache.clone();
+
         // Spawn worker threads
         let handles = self.spawn_workers(
             num_queues,
@@ -288,7 +291,17 @@ impl DpdkServerRunner {
         }
 
         let runtime_secs = start_time.elapsed().as_secs();
-        info!(runtime_secs, "Server stopped");
+
+        // Log shared ARP cache stats
+        if let Some(cache) = arp_cache_for_stats {
+            info!(
+                runtime_secs,
+                arp_cache_entries = cache.len(),
+                "Server stopped"
+            );
+        } else {
+            info!(runtime_secs, "Server stopped");
+        }
 
         // Cleanup in correct order: eth_dev first, then mempool, then EAL (via _eal drop)
         self.cleanup(eth_dev, num_queues);
@@ -333,6 +346,14 @@ impl DpdkServerRunner {
                     let _dpdk_registration =
                         ThreadRegistration::new().expect("Failed to register thread with DPDK");
 
+                    // Pin this thread to CPU `queue_id` for optimal cache locality
+                    // This mimics what DPDK EAL lcores do with pthread_setaffinity_np
+                    if let Err(e) = set_cpu_affinity(queue_id) {
+                        warn!(queue_id, error = %e, "Failed to set CPU affinity, performance may be degraded");
+                    } else {
+                        debug!(queue_id, cpu = queue_id, "Thread pinned to CPU");
+                    }
+
                     debug!(queue_id, "Starting worker thread");
 
                     // Create queue handles
@@ -374,7 +395,7 @@ impl DpdkServerRunner {
                     iface.routes_mut().add_default_ipv4_route(gateway).unwrap();
 
                     // Create tokio runtime
-                    let rt = Builder::new_current_thread().enable_all().build().unwrap();
+                    let rt = Builder::new_current_thread().build().unwrap();
                     let local = tokio::task::LocalSet::new();
 
                     local.block_on(&rt, async {

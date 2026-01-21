@@ -4,8 +4,34 @@
 use std::marker::PhantomData;
 
 use dpdk_net_sys::ffi;
+use nix::sched::{CpuSet, sched_setaffinity};
+use nix::unistd::Pid;
 
 use crate::api::check_rte_success;
+
+/// Set the current thread's CPU affinity to a single CPU core.
+///
+/// This pins the thread to the specified CPU, preventing the OS scheduler
+/// from migrating it to other cores. This is essential for DPDK performance:
+/// - Improves cache locality (L1/L2/L3 caches stay warm)
+/// - Avoids cross-NUMA memory access penalties
+/// - Mimics DPDK EAL lcore behavior with `pthread_setaffinity_np`
+///
+/// # Arguments
+/// * `cpu_id` - The CPU core ID to pin this thread to (0-indexed)
+///
+/// # Example
+/// ```no_run
+/// use dpdk_net::api::rte::thread::set_cpu_affinity;
+///
+/// // Pin current thread to CPU 2
+/// set_cpu_affinity(2).expect("Failed to set CPU affinity");
+/// ```
+pub fn set_cpu_affinity(cpu_id: usize) -> Result<(), nix::Error> {
+    let mut cpu_set = CpuSet::new();
+    cpu_set.set(cpu_id)?;
+    sched_setaffinity(Pid::from_raw(0), &cpu_set) // 0 = current thread
+}
 
 /// RAII guard for DPDK thread registration.
 ///
