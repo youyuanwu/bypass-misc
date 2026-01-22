@@ -10,31 +10,33 @@ pip install ansible
 
 ## Setup
 
-1. Deploy VMs (from project root):
+1. Deploy VMs:
    ```sh
    cd build && make azure_vm_deploy
    ```
 
 2. Verify inventory:
    ```sh
-   cd tests/e2e
-   ./inventory.py --list
+   ./tests/e2e/inventory.py --list
    ```
 
 ## Run Tests
 
 ```sh
 # Hello world (basic connectivity)
-./run_tests.sh
+./tests/e2e/run_tests.sh
 
 # Or run specific playbook
-./run_tests.sh playbooks/hello_world.yml
-./run_tests.sh playbooks/test_connectivity.yml
+./tests/e2e/run_tests.sh playbooks/hello_world.yml
+./tests/e2e/run_tests.sh playbooks/test_connectivity.yml
 
-./run_tests.sh playbooks/http_server_test.yml -e server_mode=tokio
+# HTTP server tests with different backends
+./tests/e2e/run_tests.sh playbooks/http_server_test.yml                         # DPDK mode (default)
+./tests/e2e/run_tests.sh playbooks/http_server_test.yml -e server_mode=tokio       # Tokio multi-threaded
+./tests/e2e/run_tests.sh playbooks/http_server_test.yml -e server_mode=tokio-local # Tokio thread-per-core
 
-# Direct ansible-playbook usage
-ansible-playbook playbooks/hello_world.yml -v
+# Direct ansible-playbook usage (from tests/e2e directory)
+cd tests/e2e && ansible-playbook playbooks/hello_world.yml -v
 ```
 
 ## Playbooks

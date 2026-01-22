@@ -51,8 +51,8 @@ pub struct DpdkDeviceWithPool {
     our_mac: Option<[u8; 6]>,
     /// Our IP address (for building ARP injection packets)  
     our_ip: Option<Ipv4Addr>,
-    /// Last seen cache size (skip injection if unchanged)
-    last_cache_len: usize,
+    /// Last seen cache version (skip injection if unchanged)
+    last_cache_version: usize,
 }
 
 impl DpdkDeviceWithPool {
@@ -94,7 +94,7 @@ impl DpdkDeviceWithPool {
             shared_arp_cache: None,
             our_mac: None,
             our_ip: None,
-            last_cache_len: 0,
+            last_cache_version: 0,
         }
     }
 
@@ -126,7 +126,8 @@ impl DpdkDeviceWithPool {
         // First flush any pending TX packets
         self.flush_tx();
 
-        // Then poll from network if rx_batch has space
+        // Poll from network only when rx_batch is empty (drain-then-refill pattern).
+        // This minimizes DPDK API calls and improves cache locality.
         if self.rx_batch.is_empty() {
             self.rxq.rx(&mut self.rx_batch);
 
@@ -150,7 +151,7 @@ impl DpdkDeviceWithPool {
     /// Check shared ARP cache and inject any new entries into our rx path.
     ///
     /// This allows other queues to learn MACs that queue 0 discovered.
-    /// Optimization: cache only grows, so skip if size unchanged.
+    /// Optimization: use version counter to detect any changes (including updates).
     /// Queue 0 skips injection - it receives ARP replies directly from network.
     #[inline(always)]
     fn inject_from_shared_cache(&mut self) {
@@ -167,16 +168,17 @@ impl DpdkDeviceWithPool {
             return;
         };
 
-        // Fast path: skip if cache size unchanged (cache only grows)
-        let current_len = cache.len();
-        if current_len == self.last_cache_len {
+        // Fast path: skip if cache version unchanged
+        // Version increments on any insert/update, so this catches MAC refreshes too
+        let current_version = cache.version();
+        if current_version == self.last_cache_version {
             return;
         }
 
         // Load the current cache snapshot (lock-free)
         let cache_snapshot = cache.snapshot();
 
-        // Inject all entries (we only get here when there are new ones)
+        // Inject all entries (we only get here when there are new/updated ones)
         // Re-injecting already-known entries is harmless - smoltcp deduplicates
         for (&ip, &mac) in cache_snapshot.iter() {
             let arp_packet = build_arp_reply_for_injection(our_mac, our_ip, mac, ip);
@@ -189,12 +191,14 @@ impl DpdkDeviceWithPool {
             }
         }
 
-        self.last_cache_len = current_len;
+        self.last_cache_version = current_version;
     }
 
     fn flush_tx(&mut self) {
-        // Normal mode - send to network
-        while !self.tx_batch.is_empty() {
+        // Try to send pending packets, but don't spin if TX ring is full.
+        // Remaining packets stay in tx_batch and will be retried next poll.
+        // This prevents TX pressure from blocking RX (which would cause packet drops).
+        if !self.tx_batch.is_empty() {
             self.txq.tx(&mut self.tx_batch);
         }
     }

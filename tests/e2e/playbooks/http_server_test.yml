@@ -3,6 +3,7 @@
 # Usage:
 #   DPDK mode (default): ./run_tests.sh playbooks/http_server_test.yml
 #   Tokio mode: ./run_tests.sh playbooks/http_server_test.yml -e server_mode=tokio
+#   Tokio-local mode: ./run_tests.sh playbooks/http_server_test.yml -e server_mode=tokio-local
 
 - name: Setup HTTP Server Test
   hosts: vm1
@@ -82,12 +83,19 @@
     build_dir: "{{ project_root }}/build"
     http_server_remote: /home/azureuser/dpdk_http_server
     server_port: 8080
-    # Server mode: 'dpdk' (default) or 'tokio' - passed via -e server_mode=tokio
+    # Server mode: 'dpdk' (default), 'tokio', or 'tokio-local' - passed via -e server_mode=tokio
     _server_mode: "{{ server_mode | default('dpdk') }}"
     # Server start options based on mode
-    server_start_opts: "{{ '--mode tokio' if (server_mode | default('dpdk')) == 'tokio' else '--backlog 200' }}"
-    # IP address: NIC2 for DPDK, NIC1 for Tokio
-    vm1_private_ip: "{{ hostvars['vm1'].private_ip if (server_mode | default('dpdk')) == 'tokio' else (hostvars['vm1'].private_ip2 | default(hostvars['vm1'].private_ip)) }}"
+    server_start_opts: >-
+      {%- if (server_mode | default('dpdk')) == 'tokio' -%}
+      --mode tokio
+      {%- elif (server_mode | default('dpdk')) == 'tokio-local' -%}
+      --mode tokio-local
+      {%- else -%}
+      --backlog 200
+      {%- endif -%}
+    # IP address: NIC2 for DPDK, NIC1 for Tokio modes
+    vm1_private_ip: "{{ hostvars['vm1'].private_ip if (server_mode | default('dpdk')) in ['tokio', 'tokio-local'] else (hostvars['vm1'].private_ip2 | default(hostvars['vm1'].private_ip)) }}"
 
   tasks:
     - name: Run test with guaranteed cleanup
@@ -175,7 +183,7 @@
         - name: Run wrk benchmark matrix (from VM2)
           ansible.builtin.shell: |
             echo "=== Benchmark: {{ item.threads }} threads, {{ item.connections }} connections ==="
-            wrk -t{{ item.threads }} -c{{ item.connections }} -d20s http://{{ vm1_private_ip }}:{{ server_port }}/ 2>&1 | tee /tmp/benchmarks/wrk_t{{ item.threads }}_c{{ item.connections }}.txt
+            timeout 25s wrk -t{{ item.threads }} -c{{ item.connections }} -d20s http://{{ vm1_private_ip }}:{{ server_port }}/ 2>&1 | tee /tmp/benchmarks/wrk_t{{ item.threads }}_c{{ item.connections }}.txt
             sleep 1s
           register: wrk_results
           changed_when: false

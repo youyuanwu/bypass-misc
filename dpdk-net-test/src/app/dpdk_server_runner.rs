@@ -296,7 +296,7 @@ impl DpdkServerRunner {
         if let Some(cache) = arp_cache_for_stats {
             info!(
                 runtime_secs,
-                arp_cache_entries = cache.len(),
+                arp_cache_version = cache.version(),
                 "Server stopped"
             );
         } else {

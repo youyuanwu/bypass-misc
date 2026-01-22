@@ -25,6 +25,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 hyper = { version = "1", features = ["http1", "http2", "server", "client"] }
 http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["tokio", "server-auto"] }
+socket2 = { version = "0.5", features = ["all"] }
 
 pkg-config = "0.3"
 bindgen = "0.72"

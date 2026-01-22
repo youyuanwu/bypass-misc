@@ -3,9 +3,10 @@
 //! This example starts an HTTP server that returns an HTML page showing
 //! the total number of requests received.
 //!
-//! Supports two modes:
+//! Supports three modes:
 //! - **dpdk**: Multi-queue DPDK + smoltcp + hyper (requires root, hardware NIC)
-//! - **tokio**: Standard tokio + hyper (works anywhere)
+//! - **tokio**: Standard tokio + hyper with multi-threaded runtime (works anywhere)
+//! - **tokio-local**: Thread-per-core tokio + hyper with CPU pinning (works anywhere)
 //!
 //! Usage:
 //!   # DPDK mode (requires sudo)
@@ -13,6 +14,9 @@
 //!
 //!   # Tokio mode (no sudo needed)
 //!   cargo run --example dpdk_http_server -- --mode tokio
+//!
+//!   # Tokio thread-per-core mode
+//!   cargo run --example dpdk_http_server -- --mode tokio-local
 //!
 //!   # Tokio mode with custom address
 //!   cargo run --example dpdk_http_server -- --mode tokio --addr 127.0.0.1:3000
@@ -26,13 +30,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use clap::{Parser, ValueEnum};
 use http_body_util::Full;
 use hyper::body::{Bytes, Incoming};
-use hyper::server::conn::http1;
-use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
-use hyper_util::rt::TokioIo;
-use tokio::net::TcpListener as TokioTcpListener;
-use tokio::signal;
-use tracing::{error, info, warn};
+use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 /// Global request counter shared across all connections
@@ -42,8 +41,10 @@ static REQUEST_COUNT: AtomicU64 = AtomicU64::new(0);
 enum ServerMode {
     /// DPDK + smoltcp + hyper (requires root and hardware NIC)
     Dpdk,
-    /// Standard tokio + hyper
+    /// Standard tokio + hyper with multi-threaded runtime
     Tokio,
+    /// Thread-per-core tokio + hyper with CPU pinning
+    TokioLocal,
 }
 
 #[derive(Parser, Debug)]
@@ -125,46 +126,6 @@ async fn counter_handler(_req: Request<Incoming>) -> Result<Response<Full<Bytes>
         .unwrap())
 }
 
-/// Run the tokio-based HTTP server
-async fn run_tokio_server(addr: SocketAddr) {
-    let listener = TokioTcpListener::bind(addr)
-        .await
-        .expect("Failed to bind address");
-
-    info!(%addr, "Tokio HTTP server listening");
-
-    loop {
-        tokio::select! {
-            _ = signal::ctrl_c() => {
-                warn!("Received Ctrl+C, shutting down");
-                break;
-            }
-            result = listener.accept() => {
-                let (stream, peer_addr) = match result {
-                    Ok(conn) => conn,
-                    Err(e) => {
-                        error!(error = %e, "Accept failed");
-                        continue;
-                    }
-                };
-
-                tokio::spawn(async move {
-                    let io = TokioIo::new(stream);
-
-                    if let Err(e) = http1::Builder::new()
-                        .serve_connection(io, service_fn(counter_handler))
-                        .await
-                    {
-                        error!(peer = %peer_addr, error = %e, "Connection error");
-                    }
-                });
-            }
-        }
-    }
-
-    info!("Tokio HTTP server stopped");
-}
-
 /// Run the DPDK-based HTTP server
 fn run_dpdk_server(interface: &str, port: u16, max_queues: usize, backlog: usize) {
     use dpdk_net_test::app::dpdk_server_runner::DpdkServerRunner;
@@ -202,12 +163,16 @@ fn main() {
 
     match args.mode {
         ServerMode::Tokio => {
+            use dpdk_net_test::app::tokio_server::run_tokio_multi_thread_server;
+
             info!(mode = "tokio", "Starting HTTP server");
-            let rt = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .expect("Failed to create tokio runtime");
-            rt.block_on(run_tokio_server(args.addr));
+            run_tokio_multi_thread_server(args.addr, counter_handler);
+        }
+        ServerMode::TokioLocal => {
+            use dpdk_net_test::app::tokio_server::run_tokio_thread_per_core_server;
+
+            info!(mode = "tokio-local", "Starting HTTP server");
+            run_tokio_thread_per_core_server(args.addr, counter_handler);
         }
         ServerMode::Dpdk => {
             info!(mode = "dpdk", interface = %args.interface, port = args.port, backlog = args.backlog, "Starting HTTP server");

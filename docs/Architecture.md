@@ -108,6 +108,7 @@ Testing infrastructure and example servers.
 | [app/dpdk_server_runner.rs](../dpdk-net-test/src/app/dpdk_server_runner.rs) | `DpdkServerRunner` - Multi-queue production server runner |
 | [app/echo_server.rs](../dpdk-net-test/src/app/echo_server.rs) | TCP echo server implementation |
 | [app/http_server.rs](../dpdk-net-test/src/app/http_server.rs) | HTTP/1.1 and HTTP/2 servers using hyper |
+| [app/tokio_server.rs](../dpdk-net-test/src/app/tokio_server.rs) | Standard tokio HTTP servers for benchmarking comparison |
 
 ---
 
@@ -133,6 +134,13 @@ pub struct DpdkDeviceWithPool {
 - `receive()` - Returns `(RxToken, TxToken)` pair for smoltcp to consume
 - `transmit()` - Allocates mbuf for smoltcp to fill with outgoing packet
 - `inject_rx_packet()` - Injects fake packets (used for ARP pre-population)
+
+**RX/TX Batching Strategy:**
+- **RX**: Drain-then-refill pattern. Only polls hardware when `rx_batch` is empty.
+  This minimizes DPDK API calls and improves cache locality.
+- **TX**: Non-blocking flush. Attempts to send once per poll cycle without spinning.
+  If the hardware TX ring is full, packets remain in `tx_batch` for the next cycle.
+  This prevents TX backpressure from blocking RX (which would cause packet drops).
 
 ### Reactor
 
@@ -388,6 +396,10 @@ This mimics DPDK's EAL lcore behavior, where each lcore thread is pinned via `pt
 │ inject ARP   │            │ inject ARP   │            │ inject ARP   │
 └──────────────┘            └──────────────┘            └──────────────┘
 ```
+
+**Version Counter:** The cache uses a version counter (not length) to detect changes.
+This ensures consumers re-inject when a MAC is updated for an existing IP (e.g., when
+smoltcp's neighbor cache expires and a fresh ARP reply arrives with the same gateway IP).
 
 ```rust
 // Queue 0: Scans packets for ARP replies, updates cache

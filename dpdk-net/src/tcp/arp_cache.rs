@@ -46,9 +46,9 @@ pub type MacAddress = [u8; 6];
 #[derive(Clone)]
 pub struct SharedArpCache {
     inner: Arc<ArcSwap<HashMap<Ipv4Addr, MacAddress>>>,
-    /// Atomic length counter for fast eventual-consistency checks.
-    /// Updated on insert, readers use Relaxed ordering.
-    len: Arc<AtomicUsize>,
+    /// Version counter that increments on every insert (even updates).
+    /// Used by consumers to detect any change, including MAC updates for existing IPs.
+    version: Arc<AtomicUsize>,
 }
 
 impl Default for SharedArpCache {
@@ -62,7 +62,7 @@ impl SharedArpCache {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(ArcSwap::from_pointee(HashMap::new())),
-            len: Arc::new(AtomicUsize::new(0)),
+            version: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -93,13 +93,13 @@ impl SharedArpCache {
         // Copy-on-write: clone and update
         let mut new_map = (**current).clone();
         new_map.insert(ip, mac);
-        let new_len = new_map.len();
 
         // Atomic store - safe because we're the only writer (SPMC)
         self.inner.store(Arc::new(new_map));
 
-        // Update length counter after map is visible (eventual consistency is fine)
-        self.len.store(new_len, Ordering::Release);
+        // Always bump version so consumers know to re-inject
+        // (even if it was just an update of existing entry)
+        self.version.fetch_add(1, Ordering::Release);
     }
 
     /// Check if an IP is in the cache.
@@ -110,13 +110,12 @@ impl SharedArpCache {
         self.inner.load().contains_key(ip)
     }
 
-    /// Get the number of entries (eventual consistency).
+    /// Get the version counter (increments on every insert/update).
     ///
-    /// Uses relaxed atomic load - may be slightly stale but avoids
-    /// loading the full Arc on the hot path. Safe because cache only grows.
+    /// Use this to detect changes including MAC updates for existing IPs.
     #[inline(always)]
-    pub fn len(&self) -> usize {
-        self.len.load(Ordering::Relaxed)
+    pub fn version(&self) -> usize {
+        self.version.load(Ordering::Relaxed)
     }
 
     /// Check if the cache is empty.

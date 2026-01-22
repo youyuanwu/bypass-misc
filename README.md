@@ -3,15 +3,15 @@
 [![CI](https://github.com/youyuanwu/rust-dpdk-net/actions/workflows/CI.yml/badge.svg)](https://github.com/youyuanwu/rust-dpdk-net/actions/workflows/CI.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-High-level async TCP/IP networking for Rust using [DPDK](https://www.dpdk.org/) for kernel-bypass packet I/O.
+High-level async TCP/IP networking for Rust using [DPDK](https://github.com/DPDK/dpdk) for kernel-bypass packet I/O.
 
 ## What is this?
 
 `dpdk-net` combines three technologies to provide high-performance networking:
 
-- **[DPDK](https://www.dpdk.org/)** - Kernel-bypass packet I/O directly to/from the NIC
+- **[DPDK](https://github.com/DPDK/dpdk)** - Kernel-bypass packet I/O directly to/from the NIC
 - **[smoltcp](https://github.com/smoltcp-rs/smoltcp)** - User-space TCP/IP stack
-- **[tokio](https://tokio.rs/)** - Async runtime with `TcpListener` and `TcpStream` APIs
+- **Async runtime** - Uses tokio for task scheduling (any async runtime would work)
 
 This enables building network applications (HTTP servers, proxies, etc.) that bypass the kernel network stack entirely, achieving lower latency and higher throughput.
 
@@ -46,7 +46,7 @@ This enables building network applications (HTTP servers, proxies, etc.) that by
 
 ## Features
 
-- **Async/await support** - `TcpListener`, `TcpStream` with tokio compatibility
+- **Async/await support** - Custom `TcpListener`, `TcpStream` APIs (not tokio's) compatible with any async runtime
 - **Multi-queue scaling** - RSS (Receive Side Scaling) distributes connections across CPU cores
 - **CPU affinity** - Worker threads pinned to cores for optimal cache locality
 - **hyper compatible** - Use with hyper for HTTP/1.1 and HTTP/2 servers
