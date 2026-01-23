@@ -194,13 +194,43 @@ impl DpdkDeviceWithPool {
         self.last_cache_version = current_version;
     }
 
-    fn flush_tx(&mut self) {
+    /// Flush pending TX packets to the hardware.
+    ///
+    /// This attempts to send packets in the tx_batch to the NIC. Unlike
+    /// the internal version, this is exposed for the reactor to explicitly
+    /// flush between egress iterations for fairness.
+    pub fn flush_tx(&mut self) {
         // Try to send pending packets, but don't spin if TX ring is full.
         // Remaining packets stay in tx_batch and will be retried next poll.
         // This prevents TX pressure from blocking RX (which would cause packet drops).
         if !self.tx_batch.is_empty() {
             self.txq.tx(&mut self.tx_batch);
         }
+    }
+
+    /// Check if the TX batch is full (device exhausted).
+    ///
+    /// When true, the device cannot accept more packets until some are
+    /// transmitted to hardware. This is useful for the reactor to decide
+    /// whether to yield instead of spinning.
+    #[inline]
+    pub fn is_tx_full(&self) -> bool {
+        self.tx_batch.len() >= self.tx_batch.capacity()
+    }
+
+    /// Get the number of available slots in the TX batch.
+    ///
+    /// This is useful for the reactor to check if there's enough headroom
+    /// before yielding to tasks that might queue more data.
+    #[inline]
+    pub fn tx_available(&self) -> usize {
+        self.tx_batch.capacity() - self.tx_batch.len()
+    }
+
+    /// Get the TX batch capacity.
+    #[inline]
+    pub fn tx_capacity(&self) -> usize {
+        self.tx_batch.capacity()
     }
 
     /// Inject a packet into the receive path.

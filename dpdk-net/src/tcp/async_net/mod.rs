@@ -82,7 +82,7 @@ pub use tokio_compat::{TokioRuntime, TokioTcpStream};
 pub use smoltcp::socket::tcp::{ConnectError, ListenError};
 
 use super::DpdkDeviceWithPool;
-use smoltcp::iface::{Interface, PollIngressSingleResult, SocketHandle, SocketSet};
+use smoltcp::iface::{Interface, PollIngressSingleResult, PollResult, SocketHandle, SocketSet};
 use smoltcp::phy::Device;
 use smoltcp::time::Instant;
 use std::cell::RefCell;
@@ -123,14 +123,15 @@ impl<D: Device> ReactorInner<D> {
     }
 
     /// Transmit queued packets (bounded work).
-    fn poll_egress(&mut self, timestamp: Instant) {
+    /// Returns whether any socket state changed.
+    fn poll_egress(&mut self, timestamp: Instant) -> PollResult {
         let ReactorInner {
             device,
             iface,
             sockets,
             ..
         } = self;
-        iface.poll_egress(timestamp, device, sockets);
+        iface.poll_egress(timestamp, device, sockets)
     }
 
     /// Clean up orphaned sockets that have completed their graceful close.
@@ -150,6 +151,51 @@ impl<D: Device> ReactorInner<D> {
                 _ => true, // Keep in orphan list, still closing
             }
         });
+    }
+}
+
+impl<D: Device> Drop for ReactorInner<D> {
+    fn drop(&mut self) {
+        use smoltcp::socket::tcp::State;
+
+        // Final cleanup pass - remove any sockets that completed closing
+        self.orphaned_closing.retain(|&handle| {
+            let socket = self.sockets.get::<smoltcp::socket::tcp::Socket>(handle);
+            match socket.state() {
+                State::Closed | State::TimeWait => {
+                    self.sockets.remove(handle);
+                    false
+                }
+                _ => true,
+            }
+        });
+
+        if !self.orphaned_closing.is_empty() {
+            // Count remaining sockets by state for debugging
+            let (mut fin_wait1, mut fin_wait2, mut closing, mut last_ack, mut other) =
+                (0, 0, 0, 0, 0);
+
+            for &handle in &self.orphaned_closing {
+                let socket = self.sockets.get::<smoltcp::socket::tcp::Socket>(handle);
+                match socket.state() {
+                    State::FinWait1 => fin_wait1 += 1,
+                    State::FinWait2 => fin_wait2 += 1,
+                    State::Closing => closing += 1,
+                    State::LastAck => last_ack += 1,
+                    _ => other += 1,
+                }
+            }
+
+            tracing::info!(
+                orphaned_sockets = self.orphaned_closing.len(),
+                fin_wait1,
+                fin_wait2,
+                closing,
+                last_ack,
+                other,
+                "Reactor shutting down with orphaned sockets still closing"
+            );
+        }
     }
 }
 
@@ -220,9 +266,9 @@ impl Reactor<DpdkDeviceWithPool> {
     ///
     /// This is a convenience method equivalent to `run_with::<TokioRuntime>(batch_size)`.
     ///
-    /// `batch_size` controls how many packets are processed before yielding
-    /// to other tasks. Higher values increase throughput but reduce responsiveness.
-    /// Lower values improve latency for other tasks but add yield overhead.
+    /// `batch_size` limits how many ingress packets are processed before running
+    /// egress. This prevents DoS attacks where RX floods could starve TX,
+    /// causing the server to never send responses.
     ///
     /// Recommended values:
     /// - 16-32: Good balance for mixed workloads
@@ -244,7 +290,11 @@ impl Reactor<DpdkDeviceWithPool> {
     ///
     /// # Arguments
     ///
-    /// * `batch_size` - Number of packets to process before yielding
+    /// * `batch_size` - Maximum number of ingress packets to process before
+    ///   running egress. This prevents DoS attacks where a flood of incoming
+    ///   packets could starve egress, causing the server to never send responses
+    ///   (ACKs, SYN-ACKs, data). Without this limit, an attacker could prevent
+    ///   any outbound traffic by saturating the RX queue.
     ///
     /// # Example
     ///
@@ -276,15 +326,14 @@ impl Reactor<DpdkDeviceWithPool> {
                     _ => {
                         packets_processed += 1;
                         if packets_processed >= batch_size {
-                            // Hit batch limit - break to run egress before yielding
-                            // This prevents DoS: we must send ACKs/responses, not just receive
+                            // Hit batch limit - break to run egress before continuing
                             break;
                         }
                     }
                 }
             }
 
-            // Process egress (bounded work - just transmits queued packets)
+            // Process egress - transmit queued packets
             {
                 let mut inner = self.inner.borrow_mut();
                 inner.poll_egress(timestamp);
@@ -296,9 +345,23 @@ impl Reactor<DpdkDeviceWithPool> {
                 inner.cleanup_orphaned();
             }
 
-            // Always yield to let other async tasks run (accept handlers, recv futures, etc.)
-            // Without this, spawned tasks would starve during idle periods
-            R::yield_now().await;
+            // Check TX headroom before deciding whether to yield
+            let should_yield = {
+                let inner = self.inner.borrow();
+                // Only yield when TX has at least half capacity available.
+                // This ensures tasks have room to queue packets when they wake.
+                // If TX is more than half full, keep looping to:
+                // 1. Drain RX packets (prevent drops)
+                // 2. Process ACKs (which free TX buffer space in smoltcp)
+                // 3. Give the NIC time to transmit while we do useful work
+                inner.device.tx_available() >= inner.device.tx_capacity() / 2
+            };
+
+            if should_yield {
+                // Yield to let other async tasks run (accept handlers, recv futures, etc.)
+                // We have plenty of TX headroom, so tasks can queue data safely
+                R::yield_now().await;
+            }
         }
     }
 }
