@@ -1,28 +1,34 @@
-//! HTTP Server Example - DPDK or Tokio
+//! HTTP Benchmark Server - DPDK or Tokio
 //!
-//! This example starts an HTTP server that returns an HTML page showing
-//! the total number of requests received.
+//! A high-performance HTTP server for benchmarking, supporting DPDK and Tokio backends.
 //!
 //! Supports three modes:
 //! - **dpdk**: Multi-queue DPDK + smoltcp + hyper (requires root, hardware NIC)
 //! - **tokio**: Standard tokio + hyper with multi-threaded runtime (works anywhere)
 //! - **tokio-local**: Thread-per-core tokio + hyper with CPU pinning (works anywhere)
 //!
-//! Usage:
-//!   # DPDK mode (requires sudo)
-//!   sudo -E cargo run --example dpdk_http_server -- --mode dpdk
+//! # Usage
 //!
-//!   # Tokio mode (no sudo needed)
-//!   cargo run --example dpdk_http_server -- --mode tokio
+//! ```bash
+//! # DPDK mode (requires sudo)
+//! sudo -E dpdk-bench-server --mode dpdk
 //!
-//!   # Tokio thread-per-core mode
-//!   cargo run --example dpdk_http_server -- --mode tokio-local
+//! # Tokio mode (no sudo needed)
+//! dpdk-bench-server --mode tokio
 //!
-//!   # Tokio mode with custom address
-//!   cargo run --example dpdk_http_server -- --mode tokio --addr 127.0.0.1:3000
+//! # Tokio thread-per-core mode
+//! dpdk-bench-server --mode tokio-local
 //!
-//! Then:
-//!   curl http://localhost:8080/
+//! # Custom address and port
+//! dpdk-bench-server --mode tokio --addr 127.0.0.1:3000
+//! ```
+//!
+//! # Testing
+//!
+//! ```bash
+//! curl http://localhost:8080/
+//! dpdk-bench-client -c 10 -d 10s http://localhost:8080/
+//! ```
 
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -48,10 +54,10 @@ enum ServerMode {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "http_server")]
-#[command(about = "HTTP server example with DPDK or Tokio backend")]
+#[command(name = "dpdk-bench-server")]
+#[command(about = "HTTP benchmark server with DPDK or Tokio backend")]
 struct Args {
-    /// Server mode: dpdk or tokio
+    /// Server mode: dpdk, tokio, or tokio-local
     #[arg(short, long, value_enum, default_value = "dpdk")]
     mode: ServerMode,
 
@@ -84,7 +90,7 @@ async fn counter_handler(_req: Request<Incoming>) -> Result<Response<Full<Bytes>
         r#"<!DOCTYPE html>
 <html>
 <head>
-    <title>HTTP Server</title>
+    <title>HTTP Benchmark Server</title>
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -110,7 +116,7 @@ async fn counter_handler(_req: Request<Incoming>) -> Result<Response<Full<Bytes>
 </head>
 <body>
     <div class="container">
-        <h1>🚀 HTTP Server</h1>
+        <h1>🚀 HTTP Benchmark Server</h1>
         <div class="count">{}</div>
         <div class="label">requests received</div>
     </div>
@@ -165,17 +171,24 @@ fn main() {
         ServerMode::Tokio => {
             use dpdk_net_test::app::tokio_server::run_tokio_multi_thread_server;
 
-            info!(mode = "tokio", "Starting HTTP server");
+            info!(mode = "tokio", addr = %args.addr, "Starting HTTP benchmark server");
             run_tokio_multi_thread_server(args.addr, counter_handler);
         }
         ServerMode::TokioLocal => {
             use dpdk_net_test::app::tokio_server::run_tokio_thread_per_core_server;
 
-            info!(mode = "tokio-local", "Starting HTTP server");
+            info!(mode = "tokio-local", addr = %args.addr, "Starting HTTP benchmark server");
             run_tokio_thread_per_core_server(args.addr, counter_handler);
         }
         ServerMode::Dpdk => {
-            info!(mode = "dpdk", interface = %args.interface, port = args.port, backlog = args.backlog, "Starting HTTP server");
+            info!(
+                mode = "dpdk",
+                interface = %args.interface,
+                port = args.port,
+                max_queues = args.max_queues,
+                backlog = args.backlog,
+                "Starting HTTP benchmark server"
+            );
             run_dpdk_server(&args.interface, args.port, args.max_queues, args.backlog);
         }
     }

@@ -11,13 +11,13 @@
 
   vars:
     project_root: "{{ playbook_dir }}/../../../"
-    http_server_local: "{{ project_root }}/target/release/examples/dpdk_http_server"
-    http_server_remote: /home/azureuser/dpdk_http_server
+    bench_server_local: "{{ project_root }}/target/release/dpdk-bench-server"
+    bench_server_remote: /home/azureuser/dpdk-bench-server
 
   tasks:
     - name: Get local binary checksum
       ansible.builtin.stat:
-        path: "{{ http_server_local }}"
+        path: "{{ bench_server_local }}"
         checksum_algorithm: md5
       register: local_binary
       delegate_to: localhost
@@ -25,21 +25,21 @@
 
     - name: Get remote binary checksum
       ansible.builtin.stat:
-        path: "{{ http_server_remote }}"
+        path: "{{ bench_server_remote }}"
         checksum_algorithm: md5
       register: remote_binary
 
-    - name: Copy dpdk_http_server to VM (if missing or hash mismatch)
+    - name: Copy dpdk-bench-server to VM (if missing or hash mismatch)
       ansible.builtin.copy:
-        src: "{{ http_server_local }}"
-        dest: "{{ http_server_remote }}"
+        src: "{{ bench_server_local }}"
+        dest: "{{ bench_server_remote }}"
         mode: '0755'
       when: not remote_binary.stat.exists or (remote_binary.stat.checksum != local_binary.stat.checksum)
 
     - name: Verify binary copied
       ansible.builtin.shell: |
-        ls -la {{ http_server_remote }}
-        file {{ http_server_remote }}
+        ls -la {{ bench_server_remote }}
+        file {{ bench_server_remote }}
       register: binary_info
       changed_when: false
 
@@ -51,28 +51,43 @@
   hosts: vm2
   become: true
 
+  vars:
+    project_root: "{{ playbook_dir }}/../../../"
+    bench_client_local: "{{ project_root }}/target/release/dpdk-bench-client"
+    bench_client_remote: /home/azureuser/dpdk-bench-client
+
   tasks:
-    - name: Check if wrk is installed
-      ansible.builtin.shell: which wrk
-      register: wrk_check
-      ignore_errors: true
+    - name: Get local bench client checksum
+      ansible.builtin.stat:
+        path: "{{ bench_client_local }}"
+        checksum_algorithm: md5
+      register: local_client
+      delegate_to: localhost
+      become: false
+
+    - name: Get remote bench client checksum
+      ansible.builtin.stat:
+        path: "{{ bench_client_remote }}"
+        checksum_algorithm: md5
+      register: remote_client
+
+    - name: Copy dpdk-bench-client to VM (if missing or hash mismatch)
+      ansible.builtin.copy:
+        src: "{{ bench_client_local }}"
+        dest: "{{ bench_client_remote }}"
+        mode: '0755'
+      when: not remote_client.stat.exists or (remote_client.stat.checksum != local_client.stat.checksum)
+
+    - name: Verify bench client copied
+      ansible.builtin.shell: |
+        ls -la {{ bench_client_remote }}
+        {{ bench_client_remote }} --help | head -5
+      register: client_info
       changed_when: false
 
-    - name: Install wrk
-      ansible.builtin.apt:
-        name: wrk
-        state: present
-        update_cache: true
-      when: wrk_check.rc != 0
-
-    - name: Verify wrk installation
-      ansible.builtin.shell: wrk --version 2>&1 | head -1
-      register: wrk_version
-      changed_when: false
-
-    - name: Display wrk version
+    - name: Display bench client info
       ansible.builtin.debug:
-        msg: "{{ wrk_version.stdout }}"
+        msg: "{{ client_info.stdout_lines }}"
 
 - name: Run HTTP Server Test with Cleanup
   hosts: vm1
@@ -81,7 +96,8 @@
   vars:
     project_root: "{{ playbook_dir }}/../../../"
     build_dir: "{{ project_root }}/build"
-    http_server_remote: /home/azureuser/dpdk_http_server
+    bench_server_remote: /home/azureuser/dpdk-bench-server
+    bench_client_remote: /home/azureuser/dpdk-bench-client
     server_port: 8080
     # Server mode: 'dpdk' (default), 'tokio', or 'tokio-local' - passed via -e server_mode=tokio
     _server_mode: "{{ server_mode | default('dpdk') }}"
@@ -104,8 +120,8 @@
           ansible.builtin.debug:
             msg: "server_mode={{ server_mode | default('NOT SET') }}, _server_mode={{ _server_mode }}, server_start_opts='{{ server_start_opts }}', vm1_private_ip={{ vm1_private_ip }}"
 
-        - name: Kill any existing dpdk_http_server
-          ansible.builtin.shell: killall -9 dpdk_http_server 2>/dev/null; exit 0
+        - name: Kill any existing dpdk-bench-server
+          ansible.builtin.shell: killall -9 dpdk-bench-server 2>/dev/null; exit 0
           changed_when: false
 
         - name: Ensure hugepages are configured
@@ -119,7 +135,7 @@
           ansible.builtin.shell: |
             cd /home/azureuser
             export LD_LIBRARY_PATH=/usr/local/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
-            nohup {{ http_server_remote }} {{ server_start_opts }} > /tmp/dpdk_http_server.log 2>&1 &
+            nohup {{ bench_server_remote }} {{ server_start_opts }} > /tmp/dpdk_bench_server.log 2>&1 &
             echo $!
           register: server_pid
           changed_when: true
@@ -134,12 +150,12 @@
 
         - name: Check server is running
           ansible.builtin.shell: |
-            echo "--- Checking for dpdk_http_server process ---"
-            ps aux | grep dpdk_http_server | grep -v grep
+            echo "--- Checking for dpdk-bench-server process ---"
+            ps aux | grep dpdk-bench-server | grep -v grep
             if [ $? -ne 0 ]; then
               echo "ERROR: Server not running!"
               echo "--- Server log ---"
-              cat /tmp/dpdk_http_server.log 2>/dev/null | tail -30 || echo "No log file"
+              cat /tmp/dpdk_bench_server.log 2>/dev/null | tail -30 || echo "No log file"
               exit 1
             fi
           register: server_status
@@ -180,41 +196,53 @@
             mode: '0755'
           delegate_to: vm2
 
-        - name: Run wrk benchmark matrix (from VM2)
+        - name: Run dpdk-bench-client benchmark matrix (from VM2)
           ansible.builtin.shell: |
-            echo "=== Benchmark: {{ item.threads }} threads, {{ item.connections }} connections ==="
-            timeout 25s wrk -t{{ item.threads }} -c{{ item.connections }} -d20s http://{{ vm1_private_ip }}:{{ server_port }}/ 2>&1 | tee /tmp/benchmarks/wrk_t{{ item.threads }}_c{{ item.connections }}.txt
+            echo "=== Benchmark: {{ item.connections }} connections, {{ item.duration }} ==="
+            ulimit -n 65535
+            RUST_LOG=error {{ bench_client_remote }} -c {{ item.connections }} -d {{ item.duration }} http://{{ vm1_private_ip }}:{{ server_port }}/ 2>&1 | tee /tmp/benchmarks/bench_c{{ item.connections }}.json
             sleep 1s
-          register: wrk_results
+          register: bench_results
           changed_when: false
           delegate_to: vm2
           loop:
-            - { threads: 2, connections: 10 }
-            - { threads: 2, connections: 50 }
-            - { threads: 2, connections: 100 }
-            - { threads: 2, connections: 200 }
-            - { threads: 2, connections: 500 }
+            - { connections: 10, duration: "20s" }
+            - { connections: 50, duration: "20s" }
+            - { connections: 100, duration: "20s" }
+            - { connections: 200, duration: "20s" }
+            - { connections: 500, duration: "20s" }
           loop_control:
-            label: "t{{ item.threads }}-c{{ item.connections }}"
+            label: "c{{ item.connections }}"
 
-        - name: Display wrk benchmark results
+        - name: Display benchmark results
           ansible.builtin.debug:
             msg: "{{ item.stdout_lines }}"
-          loop: "{{ wrk_results.results }}"
+          loop: "{{ bench_results.results }}"
           loop_control:
-            label: "{{ item.item.threads }}t-{{ item.item.connections }}c"
+            label: "{{ item.item.connections }}c"
 
         - name: Generate benchmark summary on VM2
           ansible.builtin.shell: |
             cd /tmp/benchmarks
-            echo "Benchmark Summary - $(date -Iseconds)" > summary.txt
-            echo "======================================" >> summary.txt
-            for f in wrk_t*.txt; do
-              echo "" >> summary.txt
-              echo "--- $f ---" >> summary.txt
-              grep -E "Requests/sec|Transfer/sec|Latency|Thread Stats" "$f" >> summary.txt || true
+            echo '{"benchmark_time": "'$(date -Iseconds)'", "results": [' > summary.json
+            first=true
+            for f in bench_c*.json; do
+              if [ "$first" = true ]; then
+                first=false
+              else
+                echo "," >> summary.json
+              fi
+              cat "$f" >> summary.json
             done
-            cat summary.txt
+            echo ']}' >> summary.json
+            # Sort by connections and pretty print with jq if available
+            if command -v jq &> /dev/null; then
+              jq '.results |= sort_by(.connections)' summary.json > summary_sorted.json
+              mv summary_sorted.json summary.json
+              jq '.' summary.json
+            else
+              cat summary.json
+            fi
           register: benchmark_summary
           changed_when: false
           delegate_to: vm2
@@ -226,19 +254,19 @@
             flat: true
           delegate_to: vm2
           loop:
-            - wrk_t2_c10.txt
-            - wrk_t2_c50.txt
-            - wrk_t2_c100.txt
-            - wrk_t2_c200.txt
-            - wrk_t2_c500.txt
-            - summary.txt
+            - bench_c10.json
+            - bench_c50.json
+            - bench_c100.json
+            - bench_c200.json
+            - bench_c500.json
+            - summary.json
           ignore_errors: true
 
       always:
         # Cleanup always runs, even if tests fail
         - name: Stop HTTP server (send SIGTERM)
           ansible.builtin.shell: |
-            pid=$(pidof dpdk_http_server) || true
+            pid=$(pidof dpdk-bench-server) || true
             if [ -n "$pid" ]; then
               kill -TERM $pid 2>/dev/null || true
               for i in 1 2 3 4 5; do
@@ -251,12 +279,12 @@
           changed_when: false
 
         - name: Show final server log
-          ansible.builtin.shell: cat /tmp/dpdk_http_server.log 2>/dev/null | tail -50 || echo "No log"
+          ansible.builtin.shell: cat /tmp/dpdk_bench_server.log 2>/dev/null | tail -50 || echo "No log"
           changed_when: false
 
         - name: Fetch server log to local build directory
           ansible.builtin.fetch:
-            src: /tmp/dpdk_http_server.log
-            dest: "{{ build_dir }}/benchmarks/{{ _server_mode }}/http_server.log"
+            src: /tmp/dpdk_bench_server.log
+            dest: "{{ build_dir }}/benchmarks/{{ _server_mode }}/bench_server.log"
             flat: true
           ignore_errors: true

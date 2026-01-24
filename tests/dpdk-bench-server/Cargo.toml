@@ -1,0 +1,22 @@
+[package]
+name = "dpdk-bench-server"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "HTTP benchmark server using DPDK or Tokio backends"
+
+[[bin]]
+name = "dpdk-bench-server"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros", "sync", "net", "signal", "time"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+hyper.workspace = true
+http-body-util.workspace = true
+
+# Reference the test crate for server implementations
+dpdk-net-test.workspace = true
