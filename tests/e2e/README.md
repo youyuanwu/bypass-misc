@@ -37,6 +37,10 @@ pip install ansible
 
 # Direct ansible-playbook usage (from tests/e2e directory)
 cd tests/e2e && ansible-playbook playbooks/hello_world.yml -v
+
+# Generate md.
+python3 tests/e2e/generate_benchmark_report.py
+cp build/benchmarks/BENCHMARK_COMPARISON.md docs/Bench/Bench-2Cpu.md
 ```
 
 ## Playbooks
