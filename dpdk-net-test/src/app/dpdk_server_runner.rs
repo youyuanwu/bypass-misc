@@ -407,9 +407,13 @@ impl DpdkServerRunner {
             let reactor = Reactor::new(device, iface);
             let handle = reactor.handle();
 
+            // Create cancel flag for reactor - set when factory finishes
+            let reactor_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let reactor_cancel_clone = reactor_cancel.clone();
+
             // Spawn reactor
-            tokio::task::spawn_local(async move {
-                reactor.run().await;
+            let reactor_task = tokio::task::spawn_local(async move {
+                reactor.run(reactor_cancel_clone).await;
             });
 
             // Create listener
@@ -424,6 +428,10 @@ impl DpdkServerRunner {
                 port,
             };
             factory(ctx).await;
+
+            // Signal reactor to stop and wait for it to finish
+            reactor_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+            let _ = reactor_task.await;
         });
 
         debug!(queue_id, "Worker stopped");

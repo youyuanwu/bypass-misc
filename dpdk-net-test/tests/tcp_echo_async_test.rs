@@ -187,9 +187,13 @@ fn test_tcp_echo_async() {
         let reactor = Reactor::new(device, iface);
         let handle = reactor.handle();
 
+        // Create cancel flag for reactor
+        let reactor_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let reactor_cancel_clone = reactor_cancel.clone();
+
         // Spawn the reactor polling task (runs in background)
-        tokio::task::spawn_local(async move {
-            reactor.run().await;
+        let reactor_task = tokio::task::spawn_local(async move {
+            reactor.run(reactor_cancel_clone).await;
         });
 
         // Create server listener with backlog = NUM_CLIENTS + 1 to handle burst
@@ -199,6 +203,10 @@ fn test_tcp_echo_async() {
 
         // Run the async test with separate tasks for clients and server
         let result = run_multi_client_test(handle, listener, NUM_CLIENTS).await;
+
+        // Signal reactor to stop and wait for it to finish
+        reactor_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        let _ = reactor_task.await;
 
         // Verify the result
         match result {

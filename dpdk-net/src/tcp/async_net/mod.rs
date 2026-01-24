@@ -35,6 +35,8 @@
 //! use dpdk_net::tcp::{DpdkDeviceWithPool, Reactor, TcpListener, TcpStream};
 //! use smoltcp::iface::Interface;
 //! use smoltcp::wire::IpAddress;
+//! use std::sync::atomic::AtomicBool;
+//! use std::sync::Arc;
 //! use tokio::runtime::Builder;
 //!
 //! fn example(device: DpdkDeviceWithPool, iface: Interface) {
@@ -45,10 +47,11 @@
 //!         // Create reactor with DPDK device and smoltcp interface
 //!         let reactor = Reactor::new(device, iface);
 //!         let handle = reactor.handle();
+//!         let cancel = Arc::new(AtomicBool::new(false));
 //!
 //!         // Spawn the reactor polling task (runs forever)
 //!         tokio::task::spawn_local(async move {
-//!             reactor.run().await;
+//!             reactor.run(cancel).await;
 //!         });
 //!
 //!         // Create a listening socket
@@ -87,6 +90,8 @@ use smoltcp::phy::Device;
 use smoltcp::time::Instant;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Default number of packets to process before yielding to other tasks.
 /// This balances responsiveness with throughput.
@@ -198,21 +203,24 @@ impl Reactor<DpdkDeviceWithPool> {
     /// ```no_run
     /// # use dpdk_net::tcp::{DpdkDeviceWithPool, Reactor};
     /// # use smoltcp::iface::Interface;
+    /// # use std::sync::atomic::AtomicBool;
+    /// # use std::sync::Arc;
     /// # async fn example(device: DpdkDeviceWithPool, iface: Interface) {
     /// let reactor = Reactor::new(device, iface);
     /// let handle = reactor.handle();
+    /// let cancel = Arc::new(AtomicBool::new(false));
     ///
     /// // Spawn reactor as background task
     /// tokio::task::spawn_local(async move {
-    ///     reactor.run().await;
+    ///     reactor.run(cancel).await;
     /// });
     ///
     /// // Now use handle to create sockets...
     /// # }
     /// ```
     #[cfg(feature = "tokio")]
-    pub async fn run(self) -> ! {
-        self.run_with::<TokioRuntime>(DEFAULT_INGRESS_BATCH_SIZE)
+    pub async fn run(self, cancel: Arc<AtomicBool>) {
+        self.run_with::<TokioRuntime>(DEFAULT_INGRESS_BATCH_SIZE, cancel)
             .await
     }
 
@@ -229,8 +237,8 @@ impl Reactor<DpdkDeviceWithPool> {
     /// - 64-128: High-throughput scenarios
     /// - 1-8: When latency for other tasks is critical
     #[cfg(feature = "tokio")]
-    pub async fn run_with_batch_size(self, batch_size: usize) -> ! {
-        self.run_with::<TokioRuntime>(batch_size).await
+    pub async fn run_with_batch_size(self, batch_size: usize, cancel: Arc<AtomicBool>) {
+        self.run_with::<TokioRuntime>(batch_size, cancel).await
     }
 
     /// Run the reactor with a custom async runtime.
@@ -245,6 +253,7 @@ impl Reactor<DpdkDeviceWithPool> {
     /// # Arguments
     ///
     /// * `batch_size` - Number of packets to process before yielding
+    /// * `cancel` - When set to `true`, the reactor loop will exit
     ///
     /// # Example
     ///
@@ -252,15 +261,18 @@ impl Reactor<DpdkDeviceWithPool> {
     /// # use dpdk_net::tcp::{DpdkDeviceWithPool, Reactor};
     /// # use dpdk_net::tcp::async_net::TokioRuntime;
     /// # use smoltcp::iface::Interface;
+    /// # use std::sync::atomic::AtomicBool;
+    /// # use std::sync::Arc;
     /// # async fn example(device: DpdkDeviceWithPool, iface: Interface) {
     /// let reactor = Reactor::new(device, iface);
+    /// let cancel = Arc::new(AtomicBool::new(false));
     ///
-    /// // Run with explicit runtime and batch size
-    /// reactor.run_with::<TokioRuntime>(64).await;
+    /// // Run with explicit runtime, batch size, and cancel flag
+    /// reactor.run_with::<TokioRuntime>(64, cancel).await;
     /// # }
     /// ```
-    pub async fn run_with<R: Runtime>(self, batch_size: usize) -> ! {
-        loop {
+    pub async fn run_with<R: Runtime>(self, batch_size: usize, cancel: Arc<AtomicBool>) {
+        while !cancel.load(Ordering::Relaxed) {
             let timestamp = Instant::now();
             let mut packets_processed = 0;
 

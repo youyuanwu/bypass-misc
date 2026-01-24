@@ -215,9 +215,13 @@ fn test_http2_echo() {
         let reactor = Reactor::new(device, iface);
         let handle = reactor.handle();
 
+        // Create cancel flag for reactor
+        let reactor_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let reactor_cancel_clone = reactor_cancel.clone();
+
         // Spawn reactor
-        tokio::task::spawn_local(async move {
-            reactor.run().await;
+        let reactor_task = tokio::task::spawn_local(async move {
+            reactor.run(reactor_cancel_clone).await;
         });
 
         // Create listener with larger buffers for HTTP/2
@@ -227,6 +231,10 @@ fn test_http2_echo() {
 
         // Run test
         let result = run_http2_test(handle, listener, NUM_CLIENTS).await;
+
+        // Signal reactor to stop and wait for it to finish
+        reactor_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        let _ = reactor_task.await;
 
         match result {
             Ok(()) => {
