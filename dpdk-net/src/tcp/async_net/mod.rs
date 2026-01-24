@@ -310,6 +310,8 @@ impl Reactor<DpdkDeviceWithPool> {
     /// # }
     /// ```
     pub async fn run_with<R: Runtime>(self, batch_size: usize) -> ! {
+        let mut iterations_since_yield = 0usize;
+
         loop {
             let timestamp = Instant::now();
             let mut packets_processed = 0;
@@ -333,10 +335,54 @@ impl Reactor<DpdkDeviceWithPool> {
                 }
             }
 
-            // Process egress - transmit queued packets
+            // Check shared ARP cache and inject any new entries before egress.
+            // This is critical for multi-queue setups where ARP replies go to queue 0
+            // but TCP connections are on other queues. The injected ARP packets need
+            // to be processed by smoltcp for the neighbor cache to be populated.
             {
                 let mut inner = self.inner.borrow_mut();
-                inner.poll_egress(timestamp);
+                inner.device.inject_from_shared_cache();
+
+                // If we injected any packets, run a mini ingress pass to process them
+                // so the neighbor cache is populated before egress tries to send.
+                if !inner.device.rx_batch_is_empty() {
+                    // Process all injected ARP packets
+                    while inner.poll_ingress_single(Instant::now()) != PollIngressSingleResult::None
+                    {
+                        // Continue until all injected packets are processed
+                    }
+                }
+            }
+
+            // Process egress - transmit queued packets
+            // Loop egress multiple times to give all sockets a fair chance.
+            // smoltcp iterates sockets in order and breaks when TX is full,
+            // so we flush TX and retry to let later sockets send too.
+            // Limit iterations to avoid spinning if NIC TX ring is full.
+            {
+                let mut inner = self.inner.borrow_mut();
+
+                const MAX_EGRESS_ROUNDS: usize = 4;
+                for _ in 0..MAX_EGRESS_ROUNDS {
+                    // Try to flush any pending TX packets to make room
+                    inner.device.flush_tx();
+
+                    // Poll egress with fresh timestamp for accurate timer processing
+                    let result = inner.poll_egress(Instant::now());
+
+                    // If no socket had anything to send, we're done
+                    if result == PollResult::None {
+                        break;
+                    }
+
+                    // If TX has room, all sockets got a chance - done
+                    if !inner.device.is_tx_full() {
+                        break;
+                    }
+                    // TX full, loop back to flush and retry for fairness
+                }
+                // Final flush to push any remaining packets
+                inner.device.flush_tx();
             }
 
             // Clean up orphaned closing sockets that have completed their handshake
@@ -357,9 +403,13 @@ impl Reactor<DpdkDeviceWithPool> {
                 inner.device.tx_available() >= inner.device.tx_capacity() / 2
             };
 
-            if should_yield {
+            iterations_since_yield += 1;
+
+            // Yield if TX has headroom OR we've gone too long without yielding.
+            // The latter ensures accept/recv tasks get a chance to poll even under load.
+            if should_yield || iterations_since_yield >= 16 {
+                iterations_since_yield = 0;
                 // Yield to let other async tasks run (accept handlers, recv futures, etc.)
-                // We have plenty of TX headroom, so tasks can queue data safely
                 R::yield_now().await;
             }
         }

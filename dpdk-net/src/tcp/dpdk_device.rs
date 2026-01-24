@@ -153,8 +153,11 @@ impl DpdkDeviceWithPool {
     /// This allows other queues to learn MACs that queue 0 discovered.
     /// Optimization: use version counter to detect any changes (including updates).
     /// Queue 0 skips injection - it receives ARP replies directly from network.
+    ///
+    /// This is called automatically during `poll_rx()`, but can also be called
+    /// explicitly from the reactor to ensure ARP entries are available for egress.
     #[inline(always)]
-    fn inject_from_shared_cache(&mut self) {
+    pub(crate) fn inject_from_shared_cache(&mut self) {
         use super::arp_cache::build_arp_reply_for_injection;
 
         // Queue 0 receives ARP replies directly, no injection needed
@@ -231,6 +234,15 @@ impl DpdkDeviceWithPool {
     #[inline]
     pub fn tx_capacity(&self) -> usize {
         self.tx_batch.capacity()
+    }
+
+    /// Check if the RX batch is empty.
+    ///
+    /// This is useful to check if there are pending packets (possibly
+    /// injected ARP entries) that need to be processed.
+    #[inline]
+    pub fn rx_batch_is_empty(&self) -> bool {
+        self.rx_batch.is_empty()
     }
 
     /// Inject a packet into the receive path.

@@ -184,16 +184,16 @@
           ansible.builtin.shell: |
             echo "=== Benchmark: {{ item.threads }} threads, {{ item.connections }} connections ==="
             timeout 25s wrk -t{{ item.threads }} -c{{ item.connections }} -d20s http://{{ vm1_private_ip }}:{{ server_port }}/ 2>&1 | tee /tmp/benchmarks/wrk_t{{ item.threads }}_c{{ item.connections }}.txt
-            sleep 1s
+            # sleep 1s
           register: wrk_results
           changed_when: false
           delegate_to: vm2
           loop:
-            - { threads: 2, connections: 10 }
-            - { threads: 2, connections: 50 }
-            - { threads: 2, connections: 100 }
-            - { threads: 2, connections: 200 }
             - { threads: 2, connections: 500 }
+            - { threads: 2, connections: 200 }
+            - { threads: 2, connections: 100 }
+            - { threads: 2, connections: 50 }
+            - { threads: 2, connections: 10 }
           loop_control:
             label: "t{{ item.threads }}-c{{ item.connections }}"
 
