@@ -1,6 +1,6 @@
 # Benchmark Comparison
 
-Generated: 2026-01-24T18:18:18.218766
+Generated: 2026-01-25T09:50:55.108260
 
 ## Summary
 
@@ -86,28 +86,6 @@ xychart-beta
 **Legend:** vs tokio (blue) | vs tokio-local (orange)
 
 
-## DPDK Bandwidth Improvement
-
-Percentage improvement of DPDK over other modes (positive = DPDK is faster).
-
-```mermaid
----
-config:
-    themeVariables:
-        xyChart:
-            plotColorPalette: "#3366cc, #ff9900"
----
-xychart-beta
-    title "DPDK Bandwidth Improvement (%)"
-    x-axis "Connections" [10, 50, 100, 200, 500]
-    y-axis "Improvement (%)" 1 --> 36
-    line "vs tokio" [21, 26, 18, 22, 20]
-    line "vs tokio-local" [11, 22, 17, 24, 25]
-```
-
-**Legend:** vs tokio (blue) | vs tokio-local (orange)
-
-
 ## Latency Comparison (p50)
 
 ```mermaid
@@ -124,6 +102,27 @@ xychart-beta
     line "dpdk" [114, 229, 458, 911, 1638]
     line "tokio" [140, 281, 545, 1111, 1929]
     line "tokio-local" [126, 274, 537, 1098, 2847]
+```
+
+**Legend:** dpdk (blue) | tokio (orange) | tokio-local (green)
+
+
+## Latency Comparison (p90)
+
+```mermaid
+---
+config:
+    themeVariables:
+        xyChart:
+            plotColorPalette: "#3366cc, #ff9900, #33cc33"
+---
+xychart-beta
+    title "p90 Latency by Connection Count"
+    x-axis "Connections" [10, 50, 100, 200, 500]
+    y-axis "Latency (μs)" 0 --> 7160
+    line "dpdk" [162, 288, 578, 1147, 4883]
+    line "tokio" [231, 388, 687, 1395, 5967]
+    line "tokio-local" [193, 355, 613, 1231, 3045]
 ```
 
 **Legend:** dpdk (blue) | tokio (orange) | tokio-local (green)

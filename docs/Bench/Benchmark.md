@@ -1,0 +1,22 @@
+# dpdk-net benchmark
+Benchmark for different kind of workload, and different setups.
+
+## Single Zone
+Machines are located close to each other, in the same data center.
+### Http read scenario
+DPDK server serves a http html page, and tokio test client try to make as much traffic as possible.
+See: 
+- [dpdk-bench-server](../../tests/dpdk-bench-server/BenchServer.md)
+- [dpdk-bench-client](../../tests/dpdk-bench-client/BenchClient.md)
+
+Driver:
+mlx5_core:  `Ethernet controller: Mellanox Technologies MT27800 Family [ConnectX-5 Virtual Function]`
+
+Azure Bench Result:
+- [Standard_D2s_v5](./Azure/Standard_D2s_v5.md): 2 cpu, 2 queue pair.
+- [Standard_D4s_v5](./Azure/Standard_D4s_v5.md): 4 cpu, 4 queue pair.
+- [Standard_D8s_v5](./Azure/Standard_D8s_v5.md): 8 cpu, 4 queue pair.
+
+TODO: 
+* D8s_v5 queue is less than cpu, so the machine is not fully utilized by the current bench server, which creates 1 thread per queue and process http request on that thread.
+

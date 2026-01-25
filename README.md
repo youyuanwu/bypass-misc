@@ -15,6 +15,8 @@ High-level async TCP/IP networking for Rust using [DPDK](https://github.com/DPDK
 
 This enables building network applications (HTTP servers, proxies, etc.) that bypass the kernel network stack entirely, achieving lower latency and higher throughput.
 
+[Benchmarks](docs/Bench/Benchmark.md) shows 10% to 25% throughput improvement than tokio server. 
+
 ## Architecture
 
 ```
@@ -51,7 +53,10 @@ This enables building network applications (HTTP servers, proxies, etc.) that by
 - **CPU affinity** - Worker threads pinned to cores for optimal cache locality
 - **hyper compatible** - Use with hyper for HTTP/1.1 and HTTP/2 servers
 
-For detailed architecture documentation, see [docs/Architecture.md](docs/Architecture.md).
+## Documentation
+- [Architecture](docs/Architecture.md) - Implementation details.
+- [Benchmarks](docs/Bench/Benchmark.md) - Performance comparison with tokio on Azure.
+- [Limitations](docs/Limitations.md) - Known limitations and constraints
 
 ## Requirements
 

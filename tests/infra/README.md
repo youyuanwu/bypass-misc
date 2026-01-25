@@ -51,7 +51,8 @@ az deployment group create \
   --template-file tests/infra/main.bicep \
   --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)" \
                vmCount=2 \
-               nicsPerVm=2
+               nicsPerVm=2 \
+               vmSize=Standard_D2s_v5
 ```
 
 ## Parameters

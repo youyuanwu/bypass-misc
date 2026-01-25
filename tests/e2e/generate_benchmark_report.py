@@ -216,56 +216,6 @@ def generate_markdown() -> str:
                 "",
             ])
 
-    # Bandwidth improvement chart (DPDK vs others)
-    if "dpdk" in summaries:
-        other_modes = [m for m in ["tokio", "tokio-local"] if m in summaries]
-        if other_modes:
-            lines.extend([
-                "",
-                "## DPDK Bandwidth Improvement",
-                "",
-                "Percentage improvement of DPDK over other modes (positive = DPDK is faster).",
-                "",
-                "```mermaid",
-                "---",
-                "config:",
-                "    themeVariables:",
-                "        xyChart:",
-                f'            plotColorPalette: "{CHART_COLORS_2}"',
-                "---",
-                "xychart-beta",
-                '    title "DPDK Bandwidth Improvement (%)"',
-                f'    x-axis "Connections" [{", ".join(str(c) for c in all_connections)}]',
-            ])
-
-            # Calculate min/max for y-axis
-            all_improvements = []
-            for other_mode in other_modes:
-                for c in all_connections:
-                    dpdk_val = summaries["dpdk"].get(c, {}).get("mb_per_sec", 0)
-                    other_val = summaries[other_mode].get(c, {}).get("mb_per_sec", 0)
-                    all_improvements.append(calc_improvement(dpdk_val, other_val))
-
-            y_min = int(min(all_improvements) - 10)
-            y_max = int(max(all_improvements) + 10)
-            lines.append(f'    y-axis "Improvement (%)" {y_min} --> {y_max}')
-
-            for other_mode in other_modes:
-                values = []
-                for c in all_connections:
-                    dpdk_val = summaries["dpdk"].get(c, {}).get("mb_per_sec", 0)
-                    other_val = summaries[other_mode].get(c, {}).get("mb_per_sec", 0)
-                    improvement = calc_improvement(dpdk_val, other_val)
-                    values.append(str(int(improvement)))
-                lines.append(f'    line "vs {other_mode}" [{", ".join(values)}]')
-
-            lines.append("```")
-            lines.extend([
-                "",
-                "**Legend:** vs tokio (blue) | vs tokio-local (orange)",
-                "",
-            ])
-
     # Latency p50 chart
     lines.extend([
         "",
@@ -296,6 +246,43 @@ def generate_markdown() -> str:
             continue
         values = [
             str(summaries[mode].get(c, {}).get("latency", {}).get("p50_us", 0))
+            for c in all_connections
+        ]
+        lines.append(f'    line "{mode}" [{", ".join(values)}]')
+
+    lines.append("```")
+    lines.extend(add_legend(modes_present))
+
+    # Latency p90 chart
+    lines.extend([
+        "",
+        "## Latency Comparison (p90)",
+        "",
+        "```mermaid",
+        "---",
+        "config:",
+        "    themeVariables:",
+        "        xyChart:",
+        f'            plotColorPalette: "{CHART_COLORS}"',
+        "---",
+        "xychart-beta",
+        '    title "p90 Latency by Connection Count"',
+        f'    x-axis "Connections" [{", ".join(str(c) for c in all_connections)}]',
+    ])
+
+    max_p90 = max(
+        r.get("latency", {}).get("p90_us", 0)
+        for results in summaries.values()
+        for r in results.values()
+    )
+    y_max_p90 = int(max_p90 * 1.2)
+    lines.append(f'    y-axis "Latency (μs)" 0 --> {y_max_p90}')
+
+    for mode in MODES:
+        if mode not in summaries:
+            continue
+        values = [
+            str(summaries[mode].get(c, {}).get("latency", {}).get("p90_us", 0))
             for c in all_connections
         ]
         lines.append(f'    line "{mode}" [{", ".join(values)}]')
