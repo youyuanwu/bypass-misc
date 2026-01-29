@@ -13,7 +13,7 @@ from datetime import datetime
 BENCHMARKS_DIR = Path(__file__).parent.parent.parent / "build" / "benchmarks"
 OUTPUT_FILE = BENCHMARKS_DIR / "BENCHMARK_COMPARISON.md"
 
-MODES = ["dpdk", "tokio", "tokio-local"]
+MODES = ["dpdk", "tokio", "tokio-local", "kimojio"]
 
 
 def load_summary(mode: str) -> dict | None:
@@ -72,9 +72,9 @@ def generate_markdown() -> str:
                 f"{lat.get('p50_us', 'N/A')} | {lat.get('p99_us', 'N/A')} | {r['errors']} |"
             )
 
-    # Color palette for charts - dpdk=blue, tokio=orange, tokio-local=green
-    CHART_COLORS = "#3366cc, #ff9900, #33cc33"
-    CHART_COLORS_2 = "#3366cc, #ff9900"  # For 2-line comparison charts
+    # Color palette for charts - dpdk=blue, tokio=orange, tokio-local=green, kimojio=purple
+    CHART_COLORS = "#3366cc, #ff9900, #33cc33, #9933ff"
+    CHART_COLORS_3 = "#3366cc, #ff9900, #33cc33"  # For 3-line comparison charts
 
     # Throughput chart
     lines.extend([
@@ -115,7 +115,7 @@ def generate_markdown() -> str:
 
     # Generate legend helper - colors match Mermaid xychart default palette
     def add_legend(modes_present):
-        colors = ["blue", "orange", "green"]
+        colors = ["blue", "orange", "green", "purple"]
         legend_items = [f"{m} ({colors[i]})" for i, m in enumerate(modes_present)]
         return ["", "**Legend:** " + " | ".join(legend_items), ""]
 
@@ -168,7 +168,7 @@ def generate_markdown() -> str:
 
     # Throughput improvement chart (DPDK vs others)
     if "dpdk" in summaries:
-        other_modes = [m for m in ["tokio", "tokio-local"] if m in summaries]
+        other_modes = [m for m in ["tokio", "tokio-local", "kimojio"] if m in summaries]
         if other_modes:
             lines.extend([
                 "",
@@ -181,7 +181,7 @@ def generate_markdown() -> str:
                 "config:",
                 "    themeVariables:",
                 "        xyChart:",
-                f'            plotColorPalette: "{CHART_COLORS_2}"',
+                f'            plotColorPalette: "{CHART_COLORS_3}"',
                 "---",
                 "xychart-beta",
                 '    title "DPDK Throughput Improvement (%)"',
@@ -210,9 +210,14 @@ def generate_markdown() -> str:
                 lines.append(f'    line "vs {other_mode}" [{", ".join(values)}]')
 
             lines.append("```")
+            # Dynamic legend for improvement chart
+            improvement_legend_items = []
+            improvement_colors = ["blue", "orange", "green"]
+            for i, m in enumerate(other_modes):
+                improvement_legend_items.append(f"vs {m} ({improvement_colors[i]})")
             lines.extend([
                 "",
-                "**Legend:** vs tokio (blue) | vs tokio-local (orange)",
+                "**Legend:** " + " | ".join(improvement_legend_items),
                 "",
             ])
 

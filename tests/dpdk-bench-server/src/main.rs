@@ -1,11 +1,12 @@
-//! HTTP Benchmark Server - DPDK or Tokio
+//! HTTP Benchmark Server - DPDK, Tokio, or Kimojio
 //!
-//! A high-performance HTTP server for benchmarking, supporting DPDK and Tokio backends.
+//! A high-performance HTTP server for benchmarking, supporting DPDK, Tokio, and Kimojio backends.
 //!
-//! Supports three modes:
+//! Supports four modes:
 //! - **dpdk**: Multi-queue DPDK + smoltcp + hyper (requires root, hardware NIC)
 //! - **tokio**: Standard tokio + hyper with multi-threaded runtime (works anywhere)
 //! - **tokio-local**: Thread-per-core tokio + hyper with CPU pinning (works anywhere)
+//! - **kimojio**: Thread-per-core io_uring + custom HTTP parser (Linux 5.15+)
 //!
 //! # Usage
 //!
@@ -18,6 +19,9 @@
 //!
 //! # Tokio thread-per-core mode
 //! dpdk-bench-server --mode tokio-local
+//!
+//! # Kimojio io_uring mode (Linux 5.15+)
+//! dpdk-bench-server --mode kimojio
 //!
 //! # Custom address and port
 //! dpdk-bench-server --mode tokio --addr 127.0.0.1:3000
@@ -35,7 +39,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use clap::{Parser, ValueEnum};
 use http_body_util::Full;
-use hyper::body::{Bytes, Incoming};
+use hyper::body::Bytes;
 use hyper::{Request, Response, StatusCode};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
@@ -51,13 +55,15 @@ enum ServerMode {
     Tokio,
     /// Thread-per-core tokio + hyper with CPU pinning
     TokioLocal,
+    /// Thread-per-core kimojio + io_uring (Linux 5.15+)
+    Kimojio,
 }
 
 #[derive(Parser, Debug)]
 #[command(name = "dpdk-bench-server")]
-#[command(about = "HTTP benchmark server with DPDK or Tokio backend")]
+#[command(about = "HTTP benchmark server with DPDK, Tokio, or Kimojio backend")]
 struct Args {
-    /// Server mode: dpdk, tokio, or tokio-local
+    /// Server mode: dpdk, tokio, tokio-local, or kimojio
     #[arg(short, long, value_enum, default_value = "dpdk")]
     mode: ServerMode,
 
@@ -82,8 +88,8 @@ struct Args {
     backlog: usize,
 }
 
-/// HTTP handler that returns an HTML page with the request count
-async fn counter_handler(_req: Request<Incoming>) -> Result<Response<Full<Bytes>>, hyper::Error> {
+/// Generate the HTML response body for the counter page.
+fn generate_counter_html() -> Bytes {
     let count = REQUEST_COUNT.fetch_add(1, Ordering::Relaxed);
 
     let html = format!(
@@ -125,11 +131,27 @@ async fn counter_handler(_req: Request<Incoming>) -> Result<Response<Full<Bytes>
         count
     );
 
+    Bytes::from(html)
+}
+
+/// HTTP handler for hyper-based servers (tokio, dpdk).
+/// Returns Result<Response<Full<Bytes>>, hyper::Error> for compatibility with hyper.
+async fn counter_handler(_req: Request<Bytes>) -> Result<Response<Full<Bytes>>, hyper::Error> {
     Ok(Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", "text/html; charset=utf-8")
-        .body(Full::new(Bytes::from(html)))
+        .body(Full::new(generate_counter_html()))
         .unwrap())
+}
+
+/// HTTP handler for kimojio-based server.
+/// Returns Response<Bytes> directly for use with kimojio's HTTP server.
+async fn counter_handler_kimojio(_req: Request<Bytes>) -> Response<Bytes> {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "text/html; charset=utf-8")
+        .body(generate_counter_html())
+        .unwrap()
 }
 
 /// Run the DPDK-based HTTP server
@@ -190,6 +212,16 @@ fn main() {
                 "Starting HTTP benchmark server"
             );
             run_dpdk_server(&args.interface, args.port, args.max_queues, args.backlog);
+        }
+        ServerMode::Kimojio => {
+            use dpdk_net_test::app::kimojio_server::run_kimojio_thread_per_core_server;
+
+            info!(
+                mode = "kimojio",
+                port = args.port,
+                "Starting HTTP benchmark server"
+            );
+            run_kimojio_thread_per_core_server(args.port, counter_handler_kimojio);
         }
     }
 }

@@ -34,6 +34,7 @@ pip install ansible
 ./tests/e2e/run_tests.sh playbooks/http_server_test.yml                         # DPDK mode (default)
 ./tests/e2e/run_tests.sh playbooks/http_server_test.yml -e server_mode=tokio       # Tokio multi-threaded
 ./tests/e2e/run_tests.sh playbooks/http_server_test.yml -e server_mode=tokio-local # Tokio thread-per-core
+./tests/e2e/run_tests.sh playbooks/http_server_test.yml -e server_mode=kimojio     # Kimojio (io_uring)
 
 # Direct ansible-playbook usage (from tests/e2e directory)
 cd tests/e2e && ansible-playbook playbooks/hello_world.yml -v

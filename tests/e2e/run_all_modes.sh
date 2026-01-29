@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run HTTP server benchmark with all 3 server modes sequentially
+# Run HTTP server benchmark with all 4 server modes sequentially
 
 set -e
 
@@ -14,7 +14,7 @@ echo "=========================================="
 echo "Cleaning up previous benchmark output..."
 rm -rf "$SCRIPT_DIR/../../build/benchmarks"
 
-MODES=("dpdk" "tokio" "tokio-local")
+MODES=("dpdk" "tokio" "tokio-local" "kimojio")
 
 for mode in "${MODES[@]}"; do
     echo ""
@@ -40,3 +40,6 @@ done
 echo "=========================================="
 echo "All modes completed!"
 echo "=========================================="
+
+# Run generate report python script
+python3 "$SCRIPT_DIR/generate_benchmark_report.py"

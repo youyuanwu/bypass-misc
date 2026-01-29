@@ -4,6 +4,7 @@
 #   DPDK mode (default): ./run_tests.sh playbooks/http_server_test.yml
 #   Tokio mode: ./run_tests.sh playbooks/http_server_test.yml -e server_mode=tokio
 #   Tokio-local mode: ./run_tests.sh playbooks/http_server_test.yml -e server_mode=tokio-local
+#   Kimojio mode: ./run_tests.sh playbooks/http_server_test.yml -e server_mode=kimojio
 
 - name: Setup HTTP Server Test
   hosts: vm1
@@ -99,7 +100,7 @@
     bench_server_remote: /home/azureuser/dpdk-bench-server
     bench_client_remote: /home/azureuser/dpdk-bench-client
     server_port: 8080
-    # Server mode: 'dpdk' (default), 'tokio', or 'tokio-local' - passed via -e server_mode=tokio
+    # Server mode: 'dpdk' (default), 'tokio', 'tokio-local', or 'kimojio' - passed via -e server_mode=tokio
     _server_mode: "{{ server_mode | default('dpdk') }}"
     # Server start options based on mode
     server_start_opts: >-
@@ -107,11 +108,13 @@
       --mode tokio
       {%- elif (server_mode | default('dpdk')) == 'tokio-local' -%}
       --mode tokio-local
+      {%- elif (server_mode | default('dpdk')) == 'kimojio' -%}
+      --mode kimojio
       {%- else -%}
       --backlog 200
       {%- endif -%}
-    # IP address: NIC2 for DPDK, NIC1 for Tokio modes
-    vm1_private_ip: "{{ hostvars['vm1'].private_ip if (server_mode | default('dpdk')) in ['tokio', 'tokio-local'] else (hostvars['vm1'].private_ip2 | default(hostvars['vm1'].private_ip)) }}"
+    # IP address: NIC2 for DPDK, NIC1 for Tokio/Kimojio modes
+    vm1_private_ip: "{{ hostvars['vm1'].private_ip if (server_mode | default('dpdk')) in ['tokio', 'tokio-local', 'kimojio'] else (hostvars['vm1'].private_ip2 | default(hostvars['vm1'].private_ip)) }}"
 
   tasks:
     - name: Run test with guaranteed cleanup
@@ -135,6 +138,7 @@
           ansible.builtin.shell: |
             cd /home/azureuser
             export LD_LIBRARY_PATH=/usr/local/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+            ulimit -n 65535
             nohup {{ bench_server_remote }} {{ server_start_opts }} > /tmp/dpdk_bench_server.log 2>&1 &
             echo $!
           register: server_pid
@@ -211,6 +215,8 @@
             - { connections: 100, duration: "20s" }
             - { connections: 200, duration: "20s" }
             - { connections: 500, duration: "20s" }
+            - { connections: 1000, duration: "20s" }
+            - { connections: 2000, duration: "20s" }
           loop_control:
             label: "c{{ item.connections }}"
 
@@ -259,6 +265,8 @@
             - bench_c100.json
             - bench_c200.json
             - bench_c500.json
+            - bench_c1000.json
+            - bench_c2000.json
             - summary.json
           ignore_errors: true
 

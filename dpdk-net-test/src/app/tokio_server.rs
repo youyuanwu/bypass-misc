@@ -2,7 +2,7 @@
 
 use std::net::SocketAddr;
 
-use http_body_util::Full;
+use http_body_util::{BodyExt, Full};
 use hyper::body::{Bytes, Incoming};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
@@ -12,6 +12,38 @@ use tokio::net::TcpListener as TokioTcpListener;
 use tokio::signal;
 use tracing::{error, info, warn};
 
+/// Wrap a handler that takes `Request<Bytes>` to work with hyper's `Request<Incoming>`.
+///
+/// This adapter collects the streaming body into `Bytes` before calling the handler,
+/// allowing handlers to be written with non-streaming body types.
+#[allow(clippy::type_complexity)]
+pub fn with_collected_body<F, Fut>(
+    handler: F,
+) -> impl Fn(
+    Request<Incoming>,
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<Response<Full<Bytes>>, hyper::Error>> + Send>,
+> + Clone
++ Send
++ Sync
+where
+    F: Fn(Request<Bytes>) -> Fut + Clone + Send + Sync + 'static,
+    Fut: std::future::Future<Output = Result<Response<Full<Bytes>>, hyper::Error>> + Send + 'static,
+{
+    move |req: Request<Incoming>| {
+        let handler = handler.clone();
+        Box::pin(async move {
+            // Split request into parts and body
+            let (parts, body) = req.into_parts();
+            // Collect the body
+            let body_bytes = body.collect().await?.to_bytes();
+            // Reconstruct with Bytes body
+            let req = Request::from_parts(parts, body_bytes);
+            handler(req).await
+        })
+    }
+}
+
 /// Run the tokio-based HTTP server with a multi-threaded runtime.
 ///
 /// This function creates a multi-threaded tokio runtime and starts a standard
@@ -20,12 +52,14 @@ use tracing::{error, info, warn};
 ///
 /// # Arguments
 /// * `addr` - The socket address to bind to
-/// * `handler` - An async function that handles HTTP requests
+/// * `handler` - An async function that handles HTTP requests with collected body
 pub fn run_tokio_multi_thread_server<F, Fut>(addr: SocketAddr, handler: F)
 where
-    F: Fn(Request<Incoming>) -> Fut + Clone + Send + 'static,
-    Fut: std::future::Future<Output = Result<Response<Full<Bytes>>, hyper::Error>> + Send,
+    F: Fn(Request<Bytes>) -> Fut + Clone + Send + Sync + 'static,
+    Fut: std::future::Future<Output = Result<Response<Full<Bytes>>, hyper::Error>> + Send + 'static,
 {
+    let wrapped_handler = with_collected_body(handler);
+
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -53,7 +87,7 @@ where
                         }
                     };
 
-                    let handler = handler.clone();
+                    let handler = wrapped_handler.clone();
                     tokio::spawn(async move {
                         let io = TokioIo::new(stream);
 
@@ -61,7 +95,7 @@ where
                             .serve_connection(io, service_fn(handler))
                             .await
                         {
-                            error!(peer = %peer_addr, error = %e, "Connection error");
+                            tracing::debug!(peer = %peer_addr, error = %e, "Connection error");
                         }
                     });
                 }
@@ -83,14 +117,16 @@ where
 ///
 /// # Arguments
 /// * `addr` - The socket address to bind to
-/// * `handler` - An async function that handles HTTP requests
+/// * `handler` - An async function that handles HTTP requests with collected body
 pub fn run_tokio_thread_per_core_server<F, Fut>(addr: SocketAddr, handler: F)
 where
-    F: Fn(Request<Incoming>) -> Fut + Clone + Send + Sync + 'static,
-    Fut: std::future::Future<Output = Result<Response<Full<Bytes>>, hyper::Error>> + Send,
+    F: Fn(Request<Bytes>) -> Fut + Clone + Send + Sync + 'static,
+    Fut: std::future::Future<Output = Result<Response<Full<Bytes>>, hyper::Error>> + Send + 'static,
 {
     use std::thread;
     use tokio_util::sync::CancellationToken;
+
+    let wrapped_handler = with_collected_body(handler);
 
     let num_cores = thread::available_parallelism()
         .map(|p| p.get())
@@ -103,7 +139,7 @@ where
 
     // Spawn worker threads for cores 1..num_cores (main thread handles core 0)
     for core_id in 1..num_cores {
-        let handler = handler.clone();
+        let handler = wrapped_handler.clone();
         let cancel_token = cancel_token.clone();
 
         let handle = thread::Builder::new()
@@ -139,7 +175,7 @@ where
             });
 
             // Run the accept loop for core 0
-            run_accept_loop(0, addr, handler, cancel_token).await;
+            run_accept_loop(0, addr, wrapped_handler, cancel_token).await;
         });
     }
 
@@ -152,14 +188,22 @@ where
 }
 
 /// Run a worker on the specified core.
-fn run_worker<F, Fut>(
+fn run_worker<F>(
     core_id: usize,
     addr: SocketAddr,
     handler: F,
     cancel_token: tokio_util::sync::CancellationToken,
 ) where
-    F: Fn(Request<Incoming>) -> Fut + Clone + Send + 'static,
-    Fut: std::future::Future<Output = Result<Response<Full<Bytes>>, hyper::Error>> + Send,
+    F: Fn(
+            Request<Incoming>,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = Result<Response<Full<Bytes>>, hyper::Error>>
+                    + Send,
+            >,
+        > + Clone
+        + Send
+        + 'static,
 {
     // Pin thread to core for better cache locality
     if let Err(e) = dpdk_net::api::rte::thread::set_cpu_affinity(core_id) {
@@ -175,14 +219,22 @@ fn run_worker<F, Fut>(
 }
 
 /// Run the accept loop for a single core.
-async fn run_accept_loop<F, Fut>(
+async fn run_accept_loop<F>(
     core_id: usize,
     addr: SocketAddr,
     handler: F,
     cancel_token: tokio_util::sync::CancellationToken,
 ) where
-    F: Fn(Request<Incoming>) -> Fut + Clone + Send + 'static,
-    Fut: std::future::Future<Output = Result<Response<Full<Bytes>>, hyper::Error>> + Send,
+    F: Fn(
+            Request<Incoming>,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = Result<Response<Full<Bytes>>, hyper::Error>>
+                    + Send,
+            >,
+        > + Clone
+        + Send
+        + 'static,
 {
     // Use socket2 to create a socket with SO_REUSEPORT
     let socket = socket2::Socket::new(

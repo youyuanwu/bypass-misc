@@ -19,6 +19,8 @@ hyper = { workspace = true }
 http-body-util.workspace = true
 hyper-util.workspace = true
 socket2.workspace = true
+httparse.workspace = true
+kimojio.workspace = true
 
 [dev-dependencies]
 serial_test.workspace = true

@@ -1,26 +1,39 @@
 # Benchmark Comparison
 
-Generated: 2026-01-25T09:50:55.108260
+Generated: 2026-01-28T22:15:14.176146
 
 ## Summary
 
 | Mode | Connections | Requests/sec | MB/sec | p50 (μs) | p99 (μs) | Errors |
 |------|-------------|--------------|--------|----------|----------|--------|
-| dpdk | 10 | 82745 | 91.5 | 114 | 213 | 0 |
-| dpdk | 50 | 217384 | 240.5 | 229 | 343 | 0 |
-| dpdk | 100 | 217308 | 240.4 | 458 | 667 | 0 |
-| dpdk | 200 | 224914 | 249.0 | 911 | 1310 | 0 |
-| dpdk | 500 | 217973 | 241.3 | 1638 | 9783 | 0 |
-| tokio | 10 | 68373 | 75.6 | 140 | 306 | 0 |
-| tokio | 50 | 172421 | 190.7 | 281 | 465 | 0 |
-| tokio | 100 | 183371 | 202.9 | 545 | 802 | 0 |
-| tokio | 200 | 183862 | 203.5 | 1111 | 1614 | 0 |
-| tokio | 500 | 180745 | 200.1 | 1929 | 11055 | 0 |
-| tokio-local | 10 | 74018 | 81.8 | 126 | 279 | 0 |
-| tokio-local | 50 | 177762 | 196.7 | 274 | 430 | 0 |
-| tokio-local | 100 | 184628 | 204.2 | 537 | 699 | 0 |
-| tokio-local | 200 | 180254 | 199.5 | 1098 | 1349 | 0 |
-| tokio-local | 500 | 174338 | 193.0 | 2847 | 3301 | 0 |
+| dpdk | 10 | 88800 | 98.2 | 105 | 204 | 0 |
+| dpdk | 50 | 210105 | 232.4 | 235 | 361 | 0 |
+| dpdk | 100 | 219736 | 243.1 | 455 | 656 | 0 |
+| dpdk | 200 | 217940 | 241.3 | 939 | 1336 | 0 |
+| dpdk | 500 | 211120 | 233.8 | 1645 | 10511 | 0 |
+| dpdk | 1000 | 186052 | 206.0 | 2004 | 29583 | 0 |
+| dpdk | 2000 | 163001 | 180.5 | 7671 | 46303 | 0 |
+| tokio | 10 | 64173 | 70.9 | 148 | 321 | 0 |
+| tokio | 50 | 167797 | 185.6 | 288 | 484 | 0 |
+| tokio | 100 | 182387 | 201.8 | 547 | 804 | 0 |
+| tokio | 200 | 171873 | 190.2 | 1195 | 1691 | 0 |
+| tokio | 500 | 183283 | 202.9 | 1974 | 10423 | 0 |
+| tokio | 1000 | 167111 | 185.0 | 2149 | 31167 | 0 |
+| tokio | 2000 | 161606 | 178.9 | 3527 | 67839 | 0 |
+| tokio-local | 10 | 70073 | 77.5 | 133 | 285 | 0 |
+| tokio-local | 50 | 164854 | 182.4 | 289 | 461 | 0 |
+| tokio-local | 100 | 188098 | 208.1 | 567 | 872 | 0 |
+| tokio-local | 200 | 184592 | 204.3 | 1079 | 1280 | 0 |
+| tokio-local | 500 | 183373 | 203.0 | 2701 | 3369 | 0 |
+| tokio-local | 1000 | 179061 | 198.3 | 5347 | 15775 | 0 |
+| tokio-local | 2000 | 166664 | 184.5 | 4115 | 62815 | 0 |
+| kimojio | 10 | 69507 | 74.4 | 135 | 289 | 0 |
+| kimojio | 50 | 154581 | 165.6 | 318 | 532 | 0 |
+| kimojio | 100 | 184578 | 197.7 | 538 | 757 | 0 |
+| kimojio | 200 | 194155 | 208.0 | 1054 | 1456 | 0 |
+| kimojio | 500 | 190208 | 203.9 | 2611 | 3081 | 0 |
+| kimojio | 1000 | 172605 | 185.0 | 5619 | 12287 | 0 |
+| kimojio | 2000 | 154853 | 166.0 | 8447 | 51007 | 0 |
 
 ## Throughput Comparison
 
@@ -29,18 +42,19 @@ Generated: 2026-01-25T09:50:55.108260
 config:
     themeVariables:
         xyChart:
-            plotColorPalette: "#3366cc, #ff9900, #33cc33"
+            plotColorPalette: "#3366cc, #ff9900, #33cc33, #9933ff"
 ---
 xychart-beta
     title "Requests per Second by Connection Count"
-    x-axis "Connections" [10, 50, 100, 200, 500]
-    y-axis "Requests/sec" 0 --> 247405
-    line "dpdk" [82745, 217383, 217307, 224914, 217972]
-    line "tokio" [68372, 172420, 183370, 183861, 180745]
-    line "tokio-local" [74018, 177762, 184627, 180253, 174338]
+    x-axis "Connections" [10, 50, 100, 200, 500, 1000, 2000]
+    y-axis "Requests/sec" 0 --> 241709
+    line "dpdk" [88799, 210105, 219735, 217940, 211119, 186051, 163001]
+    line "tokio" [64172, 167797, 182387, 171872, 183282, 167110, 161605]
+    line "tokio-local" [70073, 164853, 188098, 184592, 183373, 179060, 166664]
+    line "kimojio" [69507, 154580, 184577, 194154, 190208, 172605, 154853]
 ```
 
-**Legend:** dpdk (blue) | tokio (orange) | tokio-local (green)
+**Legend:** dpdk (blue) | tokio (orange) | tokio-local (green) | kimojio (purple)
 
 
 ## Bandwidth Comparison
@@ -50,18 +64,19 @@ xychart-beta
 config:
     themeVariables:
         xyChart:
-            plotColorPalette: "#3366cc, #ff9900, #33cc33"
+            plotColorPalette: "#3366cc, #ff9900, #33cc33, #9933ff"
 ---
 xychart-beta
     title "MB per Second by Connection Count"
-    x-axis "Connections" [10, 50, 100, 200, 500]
-    y-axis "MB/sec" 0 --> 273
-    line "dpdk" [91, 240, 240, 249, 241]
-    line "tokio" [75, 190, 202, 203, 200]
-    line "tokio-local" [81, 196, 204, 199, 193]
+    x-axis "Connections" [10, 50, 100, 200, 500, 1000, 2000]
+    y-axis "MB/sec" 0 --> 267
+    line "dpdk" [98, 232, 243, 241, 233, 206, 180]
+    line "tokio" [70, 185, 201, 190, 202, 185, 178]
+    line "tokio-local" [77, 182, 208, 204, 203, 198, 184]
+    line "kimojio" [74, 165, 197, 208, 203, 185, 165]
 ```
 
-**Legend:** dpdk (blue) | tokio (orange) | tokio-local (green)
+**Legend:** dpdk (blue) | tokio (orange) | tokio-local (green) | kimojio (purple)
 
 
 ## DPDK Throughput Improvement
@@ -73,17 +88,18 @@ Percentage improvement of DPDK over other modes (positive = DPDK is faster).
 config:
     themeVariables:
         xyChart:
-            plotColorPalette: "#3366cc, #ff9900"
+            plotColorPalette: "#3366cc, #ff9900, #33cc33"
 ---
 xychart-beta
     title "DPDK Throughput Improvement (%)"
-    x-axis "Connections" [10, 50, 100, 200, 500]
-    y-axis "Improvement (%)" 1 --> 36
-    line "vs tokio" [21, 26, 18, 22, 20]
-    line "vs tokio-local" [11, 22, 17, 24, 25]
+    x-axis "Connections" [10, 50, 100, 200, 500, 1000, 2000]
+    y-axis "Improvement (%)" -12 --> 48
+    line "vs tokio" [38, 25, 20, 26, 15, 11, 0]
+    line "vs tokio-local" [26, 27, 16, 18, 15, 3, -2]
+    line "vs kimojio" [27, 35, 19, 12, 10, 7, 5]
 ```
 
-**Legend:** vs tokio (blue) | vs tokio-local (orange)
+**Legend:** vs tokio (blue) | vs tokio-local (orange) | vs kimojio (green)
 
 
 ## Latency Comparison (p50)
@@ -93,18 +109,19 @@ xychart-beta
 config:
     themeVariables:
         xyChart:
-            plotColorPalette: "#3366cc, #ff9900, #33cc33"
+            plotColorPalette: "#3366cc, #ff9900, #33cc33, #9933ff"
 ---
 xychart-beta
     title "p50 Latency by Connection Count"
-    x-axis "Connections" [10, 50, 100, 200, 500]
-    y-axis "Latency (μs)" 0 --> 3416
-    line "dpdk" [114, 229, 458, 911, 1638]
-    line "tokio" [140, 281, 545, 1111, 1929]
-    line "tokio-local" [126, 274, 537, 1098, 2847]
+    x-axis "Connections" [10, 50, 100, 200, 500, 1000, 2000]
+    y-axis "Latency (μs)" 0 --> 10136
+    line "dpdk" [105, 235, 455, 939, 1645, 2004, 7671]
+    line "tokio" [148, 288, 547, 1195, 1974, 2149, 3527]
+    line "tokio-local" [133, 289, 567, 1079, 2701, 5347, 4115]
+    line "kimojio" [135, 318, 538, 1054, 2611, 5619, 8447]
 ```
 
-**Legend:** dpdk (blue) | tokio (orange) | tokio-local (green)
+**Legend:** dpdk (blue) | tokio (orange) | tokio-local (green) | kimojio (purple)
 
 
 ## Latency Comparison (p90)
@@ -114,18 +131,19 @@ xychart-beta
 config:
     themeVariables:
         xyChart:
-            plotColorPalette: "#3366cc, #ff9900, #33cc33"
+            plotColorPalette: "#3366cc, #ff9900, #33cc33, #9933ff"
 ---
 xychart-beta
     title "p90 Latency by Connection Count"
-    x-axis "Connections" [10, 50, 100, 200, 500]
-    y-axis "Latency (μs)" 0 --> 7160
-    line "dpdk" [162, 288, 578, 1147, 4883]
-    line "tokio" [231, 388, 687, 1395, 5967]
-    line "tokio-local" [193, 355, 613, 1231, 3045]
+    x-axis "Connections" [10, 50, 100, 200, 500, 1000, 2000]
+    y-axis "Latency (μs)" 0 --> 56216
+    line "dpdk" [155, 298, 574, 1186, 5363, 19631, 30527]
+    line "tokio" [248, 398, 690, 1492, 5687, 19759, 46847]
+    line "tokio-local" [202, 398, 704, 1178, 2839, 6399, 44959]
+    line "kimojio" [207, 424, 645, 1299, 2795, 6491, 30607]
 ```
 
-**Legend:** dpdk (blue) | tokio (orange) | tokio-local (green)
+**Legend:** dpdk (blue) | tokio (orange) | tokio-local (green) | kimojio (purple)
 
 
 ## Latency Comparison (p99)
@@ -135,18 +153,19 @@ xychart-beta
 config:
     themeVariables:
         xyChart:
-            plotColorPalette: "#3366cc, #ff9900, #33cc33"
+            plotColorPalette: "#3366cc, #ff9900, #33cc33, #9933ff"
 ---
 xychart-beta
     title "p99 Latency by Connection Count"
-    x-axis "Connections" [10, 50, 100, 200, 500]
-    y-axis "Latency (μs)" 0 --> 13266
-    line "dpdk" [213, 343, 667, 1310, 9783]
-    line "tokio" [306, 465, 802, 1614, 11055]
-    line "tokio-local" [279, 430, 699, 1349, 3301]
+    x-axis "Connections" [10, 50, 100, 200, 500, 1000, 2000]
+    y-axis "Latency (μs)" 0 --> 81406
+    line "dpdk" [204, 361, 656, 1336, 10511, 29583, 46303]
+    line "tokio" [321, 484, 804, 1691, 10423, 31167, 67839]
+    line "tokio-local" [285, 461, 872, 1280, 3369, 15775, 62815]
+    line "kimojio" [289, 532, 757, 1456, 3081, 12287, 51007]
 ```
 
-**Legend:** dpdk (blue) | tokio (orange) | tokio-local (green)
+**Legend:** dpdk (blue) | tokio (orange) | tokio-local (green) | kimojio (purple)
 
 
 ## Raw Data
@@ -158,7 +177,7 @@ xychart-beta
 
 ```json
 {
-  "benchmark_time": "2026-01-25T02:16:29+00:00",
+  "benchmark_time": "2026-01-29T06:03:17+00:00",
   "results": [
     {
       "url": "http://10.0.0.5:8080/",
@@ -167,19 +186,19 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 1654902,
+      "requests": 1775993,
       "errors": 0,
-      "gb_read": 1.79,
-      "requests_per_sec": 82745.1,
-      "mb_per_sec": 91.48,
+      "gb_read": 1.92,
+      "requests_per_sec": 88799.65,
+      "mb_per_sec": 98.18,
       "latency": {
-        "p50_us": 114,
-        "p75_us": 137,
-        "p90_us": 162,
-        "p99_us": 213,
-        "avg_us": 119,
-        "max_us": 35167,
-        "stdev_us": 65
+        "p50_us": 105,
+        "p75_us": 131,
+        "p90_us": 155,
+        "p99_us": 204,
+        "avg_us": 111,
+        "max_us": 1530,
+        "stdev_us": 32
       }
     },
     {
@@ -189,19 +208,19 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 4347671,
+      "requests": 4202108,
       "errors": 0,
-      "gb_read": 4.7,
-      "requests_per_sec": 217383.55,
-      "mb_per_sec": 240.48,
+      "gb_read": 4.54,
+      "requests_per_sec": 210105.4,
+      "mb_per_sec": 232.43,
       "latency": {
-        "p50_us": 229,
-        "p75_us": 260,
-        "p90_us": 288,
-        "p99_us": 343,
-        "avg_us": 228,
-        "max_us": 9663,
-        "stdev_us": 57
+        "p50_us": 235,
+        "p75_us": 267,
+        "p90_us": 298,
+        "p99_us": 361,
+        "avg_us": 237,
+        "max_us": 7807,
+        "stdev_us": 120
       }
     },
     {
@@ -211,19 +230,19 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 4346151,
+      "requests": 4394715,
       "errors": 0,
-      "gb_read": 4.7,
-      "requests_per_sec": 217307.55,
-      "mb_per_sec": 240.42,
+      "gb_read": 4.75,
+      "requests_per_sec": 219735.75,
+      "mb_per_sec": 243.1,
       "latency": {
-        "p50_us": 458,
-        "p75_us": 527,
-        "p90_us": 578,
-        "p99_us": 667,
-        "avg_us": 459,
-        "max_us": 161407,
-        "stdev_us": 551
+        "p50_us": 455,
+        "p75_us": 523,
+        "p90_us": 574,
+        "p99_us": 656,
+        "avg_us": 454,
+        "max_us": 3165,
+        "stdev_us": 99
       }
     },
     {
@@ -233,19 +252,19 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 4498286,
+      "requests": 4358806,
       "errors": 0,
-      "gb_read": 4.86,
-      "requests_per_sec": 224914.3,
-      "mb_per_sec": 249.03,
+      "gb_read": 4.71,
+      "requests_per_sec": 217940.3,
+      "mb_per_sec": 241.31,
       "latency": {
-        "p50_us": 911,
-        "p75_us": 1041,
-        "p90_us": 1147,
-        "p99_us": 1310,
-        "avg_us": 887,
-        "max_us": 203775,
-        "stdev_us": 268
+        "p50_us": 939,
+        "p75_us": 1074,
+        "p90_us": 1186,
+        "p99_us": 1336,
+        "avg_us": 916,
+        "max_us": 6411,
+        "stdev_us": 225
       }
     },
     {
@@ -255,19 +274,63 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 4359454,
+      "requests": 4222395,
       "errors": 0,
-      "gb_read": 4.71,
-      "requests_per_sec": 217972.7,
-      "mb_per_sec": 241.34,
+      "gb_read": 4.57,
+      "requests_per_sec": 211119.75,
+      "mb_per_sec": 233.76,
       "latency": {
-        "p50_us": 1638,
-        "p75_us": 2157,
-        "p90_us": 4883,
-        "p99_us": 9783,
-        "avg_us": 2289,
-        "max_us": 25007,
-        "stdev_us": 1906
+        "p50_us": 1645,
+        "p75_us": 2155,
+        "p90_us": 5363,
+        "p99_us": 10511,
+        "avg_us": 2360,
+        "max_us": 209151,
+        "stdev_us": 2099
+      }
+    },
+    {
+      "url": "http://10.0.0.5:8080/",
+      "connections": 1000,
+      "duration_secs": 20.0,
+      "mode": "raw",
+      "worker_threads": 2,
+      "timeout_ms": 5000,
+      "requests": 3721034,
+      "errors": 0,
+      "gb_read": 4.02,
+      "requests_per_sec": 186051.7,
+      "mb_per_sec": 206.0,
+      "latency": {
+        "p50_us": 2004,
+        "p75_us": 2625,
+        "p90_us": 19631,
+        "p99_us": 29583,
+        "avg_us": 5354,
+        "max_us": 204543,
+        "stdev_us": 7707
+      }
+    },
+    {
+      "url": "http://10.0.0.5:8080/",
+      "connections": 2000,
+      "duration_secs": 20.0,
+      "mode": "raw",
+      "worker_threads": 2,
+      "timeout_ms": 5000,
+      "requests": 3260023,
+      "errors": 0,
+      "gb_read": 3.52,
+      "requests_per_sec": 163001.15,
+      "mb_per_sec": 180.48,
+      "latency": {
+        "p50_us": 7671,
+        "p75_us": 10551,
+        "p90_us": 30527,
+        "p99_us": 46303,
+        "avg_us": 12184,
+        "max_us": 259455,
+        "stdev_us": 10893
       }
     }
   ]
@@ -283,7 +346,7 @@ xychart-beta
 
 ```json
 {
-  "benchmark_time": "2026-01-24T22:08:21+00:00",
+  "benchmark_time": "2026-01-29T06:06:36+00:00",
   "results": [
     {
       "url": "http://10.0.0.4:8080/",
@@ -292,19 +355,19 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 1367452,
+      "requests": 1283459,
       "errors": 0,
-      "gb_read": 1.48,
-      "requests_per_sec": 68372.6,
-      "mb_per_sec": 75.59,
+      "gb_read": 1.39,
+      "requests_per_sec": 64172.95,
+      "mb_per_sec": 70.94,
       "latency": {
-        "p50_us": 140,
-        "p75_us": 177,
-        "p90_us": 231,
-        "p99_us": 306,
-        "avg_us": 149,
-        "max_us": 2413,
-        "stdev_us": 55
+        "p50_us": 148,
+        "p75_us": 189,
+        "p90_us": 248,
+        "p99_us": 321,
+        "avg_us": 161,
+        "max_us": 20911,
+        "stdev_us": 99
       }
     },
     {
@@ -314,19 +377,19 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 3448417,
+      "requests": 3355948,
       "errors": 0,
-      "gb_read": 3.73,
-      "requests_per_sec": 172420.85,
-      "mb_per_sec": 190.74,
+      "gb_read": 3.63,
+      "requests_per_sec": 167797.4,
+      "mb_per_sec": 185.63,
       "latency": {
-        "p50_us": 281,
-        "p75_us": 330,
-        "p90_us": 388,
-        "p99_us": 465,
-        "avg_us": 289,
-        "max_us": 7827,
-        "stdev_us": 79
+        "p50_us": 288,
+        "p75_us": 344,
+        "p90_us": 398,
+        "p99_us": 484,
+        "avg_us": 297,
+        "max_us": 6503,
+        "stdev_us": 82
       }
     },
     {
@@ -336,19 +399,19 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 3667411,
+      "requests": 3647743,
       "errors": 0,
-      "gb_read": 3.96,
-      "requests_per_sec": 183370.55,
-      "mb_per_sec": 202.86,
+      "gb_read": 3.94,
+      "requests_per_sec": 182387.15,
+      "mb_per_sec": 201.77,
       "latency": {
-        "p50_us": 545,
+        "p50_us": 547,
         "p75_us": 626,
-        "p90_us": 687,
-        "p99_us": 802,
-        "avg_us": 544,
-        "max_us": 207743,
-        "stdev_us": 184
+        "p90_us": 690,
+        "p99_us": 804,
+        "avg_us": 546,
+        "max_us": 5179,
+        "stdev_us": 120
       }
     },
     {
@@ -358,19 +421,19 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 3677237,
+      "requests": 3437459,
       "errors": 0,
-      "gb_read": 3.97,
-      "requests_per_sec": 183861.85,
-      "mb_per_sec": 203.5,
+      "gb_read": 3.72,
+      "requests_per_sec": 171872.95,
+      "mb_per_sec": 190.22,
       "latency": {
-        "p50_us": 1111,
-        "p75_us": 1271,
-        "p90_us": 1395,
-        "p99_us": 1614,
-        "avg_us": 1085,
-        "max_us": 7431,
-        "stdev_us": 269
+        "p50_us": 1195,
+        "p75_us": 1358,
+        "p90_us": 1492,
+        "p99_us": 1691,
+        "avg_us": 1161,
+        "max_us": 10439,
+        "stdev_us": 296
       }
     },
     {
@@ -380,19 +443,63 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 3614900,
+      "requests": 3665658,
       "errors": 0,
-      "gb_read": 3.91,
-      "requests_per_sec": 180745.0,
-      "mb_per_sec": 200.12,
+      "gb_read": 3.96,
+      "requests_per_sec": 183282.9,
+      "mb_per_sec": 202.93,
       "latency": {
-        "p50_us": 1929,
-        "p75_us": 2689,
-        "p90_us": 5967,
-        "p99_us": 11055,
-        "avg_us": 2761,
-        "max_us": 29711,
-        "stdev_us": 2215
+        "p50_us": 1974,
+        "p75_us": 2709,
+        "p90_us": 5687,
+        "p99_us": 10423,
+        "avg_us": 2722,
+        "max_us": 25423,
+        "stdev_us": 2064
+      }
+    },
+    {
+      "url": "http://10.0.0.4:8080/",
+      "connections": 1000,
+      "duration_secs": 20.0,
+      "mode": "raw",
+      "worker_threads": 2,
+      "timeout_ms": 5000,
+      "requests": 3342216,
+      "errors": 0,
+      "gb_read": 3.61,
+      "requests_per_sec": 167110.8,
+      "mb_per_sec": 185.03,
+      "latency": {
+        "p50_us": 2149,
+        "p75_us": 3065,
+        "p90_us": 19759,
+        "p99_us": 31167,
+        "avg_us": 5960,
+        "max_us": 73087,
+        "stdev_us": 7998
+      }
+    },
+    {
+      "url": "http://10.0.0.4:8080/",
+      "connections": 2000,
+      "duration_secs": 20.0,
+      "mode": "raw",
+      "worker_threads": 2,
+      "timeout_ms": 5000,
+      "requests": 3232111,
+      "errors": 0,
+      "gb_read": 3.49,
+      "requests_per_sec": 161605.55,
+      "mb_per_sec": 178.93,
+      "latency": {
+        "p50_us": 3527,
+        "p75_us": 6071,
+        "p90_us": 46847,
+        "p99_us": 67839,
+        "avg_us": 12298,
+        "max_us": 213503,
+        "stdev_us": 18470
       }
     }
   ]
@@ -408,7 +515,7 @@ xychart-beta
 
 ```json
 {
-  "benchmark_time": "2026-01-24T22:10:53+00:00",
+  "benchmark_time": "2026-01-29T06:09:56+00:00",
   "results": [
     {
       "url": "http://10.0.0.4:8080/",
@@ -417,19 +524,19 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 1480363,
+      "requests": 1401462,
       "errors": 0,
-      "gb_read": 1.6,
-      "requests_per_sec": 74018.15,
-      "mb_per_sec": 81.83,
+      "gb_read": 1.51,
+      "requests_per_sec": 70073.1,
+      "mb_per_sec": 77.47,
       "latency": {
-        "p50_us": 126,
-        "p75_us": 155,
-        "p90_us": 193,
-        "p99_us": 279,
-        "avg_us": 132,
-        "max_us": 2445,
-        "stdev_us": 47
+        "p50_us": 133,
+        "p75_us": 163,
+        "p90_us": 202,
+        "p99_us": 285,
+        "avg_us": 141,
+        "max_us": 2997,
+        "stdev_us": 52
       }
     },
     {
@@ -439,19 +546,19 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 3555250,
+      "requests": 3297073,
       "errors": 0,
-      "gb_read": 3.84,
-      "requests_per_sec": 177762.5,
-      "mb_per_sec": 196.65,
+      "gb_read": 3.56,
+      "requests_per_sec": 164853.65,
+      "mb_per_sec": 182.37,
       "latency": {
-        "p50_us": 274,
-        "p75_us": 303,
-        "p90_us": 355,
-        "p99_us": 430,
-        "avg_us": 281,
-        "max_us": 207871,
-        "stdev_us": 153
+        "p50_us": 289,
+        "p75_us": 350,
+        "p90_us": 398,
+        "p99_us": 461,
+        "avg_us": 297,
+        "max_us": 4183,
+        "stdev_us": 75
       }
     },
     {
@@ -461,19 +568,19 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 3692558,
+      "requests": 3761965,
       "errors": 0,
-      "gb_read": 3.99,
-      "requests_per_sec": 184627.9,
-      "mb_per_sec": 204.25,
+      "gb_read": 4.06,
+      "requests_per_sec": 188098.25,
+      "mb_per_sec": 208.09,
       "latency": {
-        "p50_us": 537,
-        "p75_us": 568,
-        "p90_us": 613,
-        "p99_us": 699,
-        "avg_us": 539,
-        "max_us": 206975,
-        "stdev_us": 168
+        "p50_us": 567,
+        "p75_us": 658,
+        "p90_us": 704,
+        "p99_us": 872,
+        "avg_us": 548,
+        "max_us": 10607,
+        "stdev_us": 152
       }
     },
     {
@@ -483,19 +590,19 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 3605078,
+      "requests": 3691849,
       "errors": 0,
-      "gb_read": 3.9,
-      "requests_per_sec": 180253.9,
-      "mb_per_sec": 199.52,
+      "gb_read": 3.99,
+      "requests_per_sec": 184592.45,
+      "mb_per_sec": 204.31,
       "latency": {
-        "p50_us": 1098,
-        "p75_us": 1188,
-        "p90_us": 1231,
-        "p99_us": 1349,
-        "avg_us": 1106,
-        "max_us": 10783,
-        "stdev_us": 119
+        "p50_us": 1079,
+        "p75_us": 1125,
+        "p90_us": 1178,
+        "p99_us": 1280,
+        "avg_us": 1082,
+        "max_us": 7691,
+        "stdev_us": 98
       }
     },
     {
@@ -505,19 +612,232 @@ xychart-beta
       "mode": "raw",
       "worker_threads": 2,
       "timeout_ms": 5000,
-      "requests": 3486766,
+      "requests": 3667467,
       "errors": 0,
-      "gb_read": 3.77,
-      "requests_per_sec": 174338.3,
-      "mb_per_sec": 193.03,
+      "gb_read": 3.97,
+      "requests_per_sec": 183373.35,
+      "mb_per_sec": 203.03,
       "latency": {
-        "p50_us": 2847,
-        "p75_us": 2953,
-        "p90_us": 3045,
-        "p99_us": 3301,
-        "avg_us": 2865,
-        "max_us": 24847,
-        "stdev_us": 257
+        "p50_us": 2701,
+        "p75_us": 2773,
+        "p90_us": 2839,
+        "p99_us": 3369,
+        "avg_us": 2718,
+        "max_us": 17215,
+        "stdev_us": 221
+      }
+    },
+    {
+      "url": "http://10.0.0.4:8080/",
+      "connections": 1000,
+      "duration_secs": 20.0,
+      "mode": "raw",
+      "worker_threads": 2,
+      "timeout_ms": 5000,
+      "requests": 3581216,
+      "errors": 0,
+      "gb_read": 3.87,
+      "requests_per_sec": 179060.8,
+      "mb_per_sec": 198.26,
+      "latency": {
+        "p50_us": 5347,
+        "p75_us": 5815,
+        "p90_us": 6399,
+        "p99_us": 15775,
+        "avg_us": 5561,
+        "max_us": 65791,
+        "stdev_us": 2252
+      }
+    },
+    {
+      "url": "http://10.0.0.4:8080/",
+      "connections": 2000,
+      "duration_secs": 20.0,
+      "mode": "raw",
+      "worker_threads": 2,
+      "timeout_ms": 5000,
+      "requests": 3333280,
+      "errors": 0,
+      "gb_read": 3.6,
+      "requests_per_sec": 166664.0,
+      "mb_per_sec": 184.53,
+      "latency": {
+        "p50_us": 4115,
+        "p75_us": 5991,
+        "p90_us": 44959,
+        "p99_us": 62815,
+        "avg_us": 11938,
+        "max_us": 158207,
+        "stdev_us": 17469
+      }
+    }
+  ]
+}
+```
+
+</details>
+
+### kimojio
+
+<details>
+<summary>Click to expand</summary>
+
+```json
+{
+  "benchmark_time": "2026-01-29T06:13:14+00:00",
+  "results": [
+    {
+      "url": "http://10.0.0.4:8080/",
+      "connections": 10,
+      "duration_secs": 20.0,
+      "mode": "raw",
+      "worker_threads": 2,
+      "timeout_ms": 5000,
+      "requests": 1390144,
+      "errors": 0,
+      "gb_read": 1.45,
+      "requests_per_sec": 69507.2,
+      "mb_per_sec": 74.39,
+      "latency": {
+        "p50_us": 135,
+        "p75_us": 167,
+        "p90_us": 207,
+        "p99_us": 289,
+        "avg_us": 143,
+        "max_us": 5131,
+        "stdev_us": 54
+      }
+    },
+    {
+      "url": "http://10.0.0.4:8080/",
+      "connections": 50,
+      "duration_secs": 20.0,
+      "mode": "raw",
+      "worker_threads": 2,
+      "timeout_ms": 5000,
+      "requests": 3091615,
+      "errors": 0,
+      "gb_read": 3.23,
+      "requests_per_sec": 154580.75,
+      "mb_per_sec": 165.55,
+      "latency": {
+        "p50_us": 318,
+        "p75_us": 377,
+        "p90_us": 424,
+        "p99_us": 532,
+        "avg_us": 322,
+        "max_us": 5531,
+        "stdev_us": 86
+      }
+    },
+    {
+      "url": "http://10.0.0.4:8080/",
+      "connections": 100,
+      "duration_secs": 20.0,
+      "mode": "raw",
+      "worker_threads": 2,
+      "timeout_ms": 5000,
+      "requests": 3691550,
+      "errors": 0,
+      "gb_read": 3.86,
+      "requests_per_sec": 184577.5,
+      "mb_per_sec": 197.68,
+      "latency": {
+        "p50_us": 538,
+        "p75_us": 590,
+        "p90_us": 645,
+        "p99_us": 757,
+        "avg_us": 540,
+        "max_us": 9759,
+        "stdev_us": 98
+      }
+    },
+    {
+      "url": "http://10.0.0.4:8080/",
+      "connections": 200,
+      "duration_secs": 20.0,
+      "mode": "raw",
+      "worker_threads": 2,
+      "timeout_ms": 5000,
+      "requests": 3883097,
+      "errors": 0,
+      "gb_read": 4.06,
+      "requests_per_sec": 194154.85,
+      "mb_per_sec": 208.03,
+      "latency": {
+        "p50_us": 1054,
+        "p75_us": 1217,
+        "p90_us": 1299,
+        "p99_us": 1456,
+        "avg_us": 1032,
+        "max_us": 30687,
+        "stdev_us": 236
+      }
+    },
+    {
+      "url": "http://10.0.0.4:8080/",
+      "connections": 500,
+      "duration_secs": 20.0,
+      "mode": "raw",
+      "worker_threads": 2,
+      "timeout_ms": 5000,
+      "requests": 3804165,
+      "errors": 0,
+      "gb_read": 3.98,
+      "requests_per_sec": 190208.25,
+      "mb_per_sec": 203.89,
+      "latency": {
+        "p50_us": 2611,
+        "p75_us": 2697,
+        "p90_us": 2795,
+        "p99_us": 3081,
+        "avg_us": 2622,
+        "max_us": 210559,
+        "stdev_us": 336
+      }
+    },
+    {
+      "url": "http://10.0.0.4:8080/",
+      "connections": 1000,
+      "duration_secs": 20.0,
+      "mode": "raw",
+      "worker_threads": 2,
+      "timeout_ms": 5000,
+      "requests": 3452103,
+      "errors": 0,
+      "gb_read": 3.61,
+      "requests_per_sec": 172605.15,
+      "mb_per_sec": 185.02,
+      "latency": {
+        "p50_us": 5619,
+        "p75_us": 6023,
+        "p90_us": 6491,
+        "p99_us": 12287,
+        "avg_us": 5765,
+        "max_us": 186111,
+        "stdev_us": 1636
+      }
+    },
+    {
+      "url": "http://10.0.0.4:8080/",
+      "connections": 2000,
+      "duration_secs": 20.0,
+      "mode": "raw",
+      "worker_threads": 2,
+      "timeout_ms": 5000,
+      "requests": 3097067,
+      "errors": 0,
+      "gb_read": 3.24,
+      "requests_per_sec": 154853.35,
+      "mb_per_sec": 165.99,
+      "latency": {
+        "p50_us": 8447,
+        "p75_us": 13575,
+        "p90_us": 30607,
+        "p99_us": 51007,
+        "avg_us": 12847,
+        "max_us": 540671,
+        "stdev_us": 11348
       }
     }
   ]

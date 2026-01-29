@@ -22,10 +22,10 @@
 //!
 //! // Using a custom handler
 //! use http_body_util::Full;
-//! use hyper::body::{Bytes, Incoming};
+//! use hyper::body::Bytes;
 //! use hyper::{Request, Response, StatusCode};
 //!
-//! async fn my_handler(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, hyper::Error> {
+//! async fn my_handler(req: Request<Bytes>) -> Result<Response<Full<Bytes>>, hyper::Error> {
 //!     Ok(Response::builder()
 //!         .status(StatusCode::OK)
 //!         .body(Full::new(Bytes::from("Hello!")))
@@ -77,14 +77,14 @@ where
 ///
 /// This function handles HTTP requests by echoing the request body
 /// back in the response. Works with both HTTP/1.1 and HTTP/2.
-pub async fn echo_service(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, hyper::Error> {
+pub async fn echo_service(req: Request<Bytes>) -> Result<Response<Full<Bytes>>, hyper::Error> {
     let method = req.method().clone();
     let uri = req.uri().clone();
     let version = req.version();
     debug!(version = ?version, %method, %uri, "HTTP request received");
 
-    // Collect the request body
-    let body_bytes = req.collect().await?.to_bytes();
+    // Get the request body (already collected)
+    let body_bytes = req.into_body();
     debug!(bytes = body_bytes.len(), "HTTP body received");
 
     // Echo it back
@@ -95,6 +95,37 @@ pub async fn echo_service(req: Request<Incoming>) -> Result<Response<Full<Bytes>
         .unwrap();
 
     Ok(response)
+}
+
+/// Wrap a handler that takes `Request<Bytes>` to work with hyper's `Request<Incoming>`.
+///
+/// This adapter collects the streaming body into `Bytes` before calling the handler,
+/// allowing handlers to be written with non-streaming body types.
+#[allow(clippy::type_complexity)]
+fn with_collected_body<F, Fut>(
+    handler: F,
+) -> impl Fn(
+    Request<Incoming>,
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<Response<Full<Bytes>>, hyper::Error>>>,
+> + Clone
++ 'static
+where
+    F: Fn(Request<Bytes>) -> Fut + Clone + 'static,
+    Fut: std::future::Future<Output = Result<Response<Full<Bytes>>, hyper::Error>> + 'static,
+{
+    move |req: Request<Incoming>| {
+        let handler = handler.clone();
+        Box::pin(async move {
+            // Split request into parts and body
+            let (parts, body) = req.into_parts();
+            // Collect the body
+            let body_bytes = body.collect().await?.to_bytes();
+            // Reconstruct with Bytes body
+            let req = Request::from_parts(parts, body_bytes);
+            handler(req).await
+        })
+    }
 }
 
 /// HTTP/1+2 Auto Server with custom handler.
@@ -111,7 +142,7 @@ pub struct HttpAutoServer<F> {
 
 impl<F, Fut> HttpAutoServer<F>
 where
-    F: Fn(Request<Incoming>) -> Fut + Clone + 'static,
+    F: Fn(Request<Bytes>) -> Fut + Clone + 'static,
     Fut: Future<Output = Result<Response<Full<Bytes>>, hyper::Error>> + 'static,
 {
     /// Create a new HTTP auto server with a custom handler.
@@ -119,7 +150,7 @@ where
     /// # Arguments
     /// * `listener` - The TCP listener to accept connections on
     /// * `cancel` - Cancellation token for graceful shutdown
-    /// * `handler` - The request handler function
+    /// * `handler` - The request handler function (receives collected body as Bytes)
     /// * `queue_id` - Queue identifier for logging
     /// * `port` - Port number for logging
     pub fn new(
@@ -150,6 +181,7 @@ where
             "HTTP/1+2 Auto Server listening"
         );
 
+        let wrapped_handler = with_collected_body(self.handler);
         let mut conn_id = 0u64;
 
         loop {
@@ -166,7 +198,7 @@ where
                             debug!(queue_id, conn_id = id, "HTTP connection accepted");
 
                             let io = TokioIo::new(TokioTcpStream::new(stream));
-                            let handler = self.handler.clone();
+                            let handler = wrapped_handler.clone();
 
                             tokio::task::spawn_local(async move {
                                 let result = AutoBuilder::new(LocalExecutor)
@@ -204,7 +236,7 @@ pub struct Http1Server<F> {
 
 impl<F, Fut> Http1Server<F>
 where
-    F: Fn(Request<Incoming>) -> Fut + Clone + 'static,
+    F: Fn(Request<Bytes>) -> Fut + Clone + 'static,
     Fut: Future<Output = Result<Response<Full<Bytes>>, hyper::Error>> + 'static,
 {
     /// Create a new HTTP/1.1 server with a custom handler.
@@ -232,6 +264,7 @@ where
             "HTTP/1.1 Server listening"
         );
 
+        let wrapped_handler = with_collected_body(self.handler);
         let mut conn_id = 0u64;
 
         loop {
@@ -248,7 +281,7 @@ where
                             debug!(queue_id, conn_id = id, "HTTP/1.1 connection accepted");
 
                             let io = TokioIo::new(TokioTcpStream::new(stream));
-                            let handler = self.handler.clone();
+                            let handler = wrapped_handler.clone();
 
                             tokio::task::spawn_local(async move {
                                 let result = server_http1::Builder::new()
@@ -290,7 +323,7 @@ pub struct Http2Server<F> {
 
 impl<F, Fut> Http2Server<F>
 where
-    F: Fn(Request<Incoming>) -> Fut + Clone + 'static,
+    F: Fn(Request<Bytes>) -> Fut + Clone + 'static,
     Fut: Future<Output = Result<Response<Full<Bytes>>, hyper::Error>> + 'static,
 {
     /// Create a new HTTP/2 server with a custom handler.
@@ -318,6 +351,7 @@ where
             "HTTP/2 Server listening"
         );
 
+        let wrapped_handler = with_collected_body(self.handler);
         let mut conn_id = 0u64;
 
         loop {
@@ -334,7 +368,7 @@ where
                             debug!(queue_id, conn_id = id, "HTTP/2 connection accepted");
 
                             let io = TokioIo::new(TokioTcpStream::new(stream));
-                            let handler = self.handler.clone();
+                            let handler = wrapped_handler.clone();
 
                             tokio::task::spawn_local(async move {
                                 let result = server_http2::Builder::new(LocalExecutor)
