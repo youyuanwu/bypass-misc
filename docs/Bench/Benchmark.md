@@ -17,6 +17,7 @@ Azure Bench Result:
 - [Standard_D4s_v5](./Azure/Standard_D4s_v5.md): 4 cpu, 4 queue pair.
 - [Standard_D8s_v5](./Azure/Standard_D8s_v5.md): 8 cpu, 4 queue pair.
 
-TODO: 
-* D8s_v5 queue is less than cpu, so the machine is not fully utilized by the current bench server, which creates 1 thread per queue and process http request on that thread.
+Note: 
+* In some vm queue is less than cpu, so the machine is not fully utilized by the current bench server, which creates 1 thread per queue and process http request on that thread.
+But the above vm sizes has 1 queue per cpu.
 

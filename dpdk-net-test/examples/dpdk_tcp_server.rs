@@ -35,7 +35,6 @@ fn main() {
 
     DpdkServerRunner::new("eth1")
         .port(SERVER_PORT)
-        .max_queues(4)
         .run(move |ctx| {
             let stats = stats_for_runner.clone();
             async move {

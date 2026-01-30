@@ -80,8 +80,8 @@ struct Args {
     port: u16,
 
     /// Maximum number of queues for DPDK mode
-    #[arg(long, default_value = "4")]
-    max_queues: usize,
+    #[arg(long)]
+    max_queues: Option<usize>,
 
     /// Listen backlog for DPDK mode (number of pending connections)
     #[arg(long, default_value = "64")]
@@ -155,13 +155,15 @@ async fn counter_handler_kimojio(_req: Request<Bytes>) -> Response<Bytes> {
 }
 
 /// Run the DPDK-based HTTP server
-fn run_dpdk_server(interface: &str, port: u16, max_queues: usize, backlog: usize) {
+fn run_dpdk_server(interface: &str, port: u16, max_queues: Option<usize>, backlog: usize) {
     use dpdk_net_test::app::dpdk_server_runner::DpdkServerRunner;
     use dpdk_net_test::app::http_server::Http1Server;
 
-    DpdkServerRunner::new(interface)
-        .port(port)
-        .max_queues(max_queues)
+    let mut runner = DpdkServerRunner::new(interface).port(port);
+    if let Some(max_queues) = max_queues {
+        runner = runner.max_queues(max_queues);
+    }
+    runner
         .backlog(backlog)
         .tcp_buffers(16384, 16384)
         .run(|ctx| async move {

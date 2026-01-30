@@ -88,6 +88,15 @@ ssh azureuser@<vm1-public-ip>
 ssh 10.0.0.5  # or 10.0.0.6 if using 2 NICs per VM
 ```
 
+## Start and stop vm
+```sh
+az vm deallocate --resource-group $rg --name "$rg-vm1" 
+az vm deallocate --resource-group $rg --name "$rg-vm2"
+
+az vm start --resource-group $rg --name "$rg-vm1"
+az vm start --resource-group $rg --name "$rg-vm2"
+```
+
 ## Cleanup
 
 ```sh

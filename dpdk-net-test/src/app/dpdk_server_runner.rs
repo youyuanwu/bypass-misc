@@ -68,7 +68,7 @@ pub struct ServerContext {
 pub struct DpdkServerRunner {
     interface: String,
     port: u16,
-    max_queues: usize,
+    max_queues: Option<usize>,
     mbufs_per_queue: u32,
     rx_desc: u16,
     tx_desc: u16,
@@ -88,7 +88,7 @@ impl DpdkServerRunner {
         Self {
             interface: interface.to_string(),
             port: 8080,
-            max_queues: 1, // Default to 1 for reliable TCP
+            max_queues: None,
             mbufs_per_queue: 8192,
             rx_desc: 1024,
             tx_desc: 1024,
@@ -113,7 +113,7 @@ impl DpdkServerRunner {
     ///
     /// For single-client TCP benchmarks, keep this at 1.
     pub fn max_queues(mut self, max: usize) -> Self {
-        self.max_queues = max;
+        self.max_queues = Some(max);
         self
     }
 
@@ -163,7 +163,7 @@ impl DpdkServerRunner {
         // Query hardware queue count via ethtool BEFORE initializing DPDK
         let hw_queues = crate::util::get_ethtool_channels(&self.interface)
             .map(|ch| ch.combined_count as usize)
-            .unwrap_or(self.max_queues);
+            .expect("fail to get hw queues");
         info!("Hardware queue limit from ethtool: {}", hw_queues);
 
         // Initialize DPDK EAL
@@ -175,14 +175,39 @@ impl DpdkServerRunner {
         // Query device info to get RETA size before configuring
         let dev_info = EthDev::new(0).info().expect("Failed to get device info");
         let reta_size = dev_info.reta_size as usize;
+        let max_rx_queues = dev_info.max_rx_queues as usize;
+        let max_tx_queues = dev_info.max_tx_queues as usize;
+
+        // Get number of cpus
+        let num_cpus = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1);
+        info!(
+            hw_queues,
+            num_cpus, reta_size, max_rx_queues, max_tx_queues, "Device info"
+        );
 
         // Calculate number of queues - limited by RETA size for proper RSS distribution
-        let mut num_queues = std::cmp::min(hw_queues, self.max_queues);
-        info!(reta_size=%reta_size, num_queues=%num_queues, "Device RETA size");
-        if reta_size > 0 && num_queues > reta_size {
-            num_queues = reta_size;
+        let mut num_queues = hw_queues;
+
+        if num_cpus > num_queues {
+            warn!(
+                num_cpus,
+                num_queues,
+                "Queue count is less than CPU count. Scale up to cpu count for best performance."
+            );
+            num_queues = num_cpus;
         }
-        let num_queues = std::cmp::max(num_queues, 1);
+
+        if let Some(max_queue) = self.max_queues
+            && max_queue < num_queues
+        {
+            warn!(
+                max_queue,
+                num_queues, "Limiting number of queues to user-specified maximum"
+            );
+            num_queues = max_queue;
+        }
 
         self.print_banner(ip_addr, gateway, hw_queues, num_queues);
 
