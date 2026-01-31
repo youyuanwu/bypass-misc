@@ -17,7 +17,7 @@
 //!
 //! ```no_run
 //! use dpdk_net_test::app::custom_http::SimpleHttp1Server;
-//! use dpdk_net::tcp::TcpListener;
+//! use dpdk_net::socket::TcpListener;
 //! use tokio_util::sync::CancellationToken;
 //! use hyper::body::Bytes;
 //! use hyper::http::{Request, Response, StatusCode};
@@ -48,8 +48,8 @@ use hyper::http::{
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tracing::{debug, error, info};
 
-use dpdk_net::tcp::TcpListener;
-use dpdk_net::tcp::async_net::TokioTcpStream;
+use dpdk_net::runtime::tokio_compat::TokioTcpStream;
+use dpdk_net::socket::TcpListener;
 use tokio_util::sync::CancellationToken;
 
 /// Maximum number of headers to parse

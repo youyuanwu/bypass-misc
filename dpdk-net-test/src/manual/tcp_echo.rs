@@ -7,7 +7,7 @@
 //!
 //! ```no_run
 //! use dpdk_net_test::manual::tcp_echo::{EchoServer, EchoClient, SocketConfig, run_echo_test};
-//! use dpdk_net::tcp::DpdkDevice;
+//! use dpdk_net::device::DpdkDevice;
 //! use smoltcp::iface::{Interface, SocketSet};
 //! use smoltcp::time::Instant;
 //! use smoltcp::wire::Ipv4Address;

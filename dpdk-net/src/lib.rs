@@ -1,5 +1,8 @@
 pub mod api;
-pub mod tcp;
+pub mod device;
+pub mod runtime;
+pub mod socket;
+
 /// A boxed error type for dpdk-net operations.
 pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
 

@@ -10,7 +10,7 @@ use dpdk_net::api::Errno;
 use dpdk_net::api::rte::eth::{EthConf, EthDev, EthDevBuilder, RxQueueConf, TxQueueConf};
 use dpdk_net::api::rte::pktmbuf::{MemPool, MemPoolConfig};
 use dpdk_net::api::rte::queue::{RxQueue, TxQueue};
-use dpdk_net::tcp::DpdkDevice;
+use dpdk_net::device::DpdkDevice;
 
 /// Default headroom reserved at the front of each mbuf (matches RTE_PKTMBUF_HEADROOM)
 pub const DEFAULT_MBUF_HEADROOM: usize = 128;

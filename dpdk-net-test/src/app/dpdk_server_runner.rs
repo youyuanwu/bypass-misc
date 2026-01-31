@@ -54,7 +54,9 @@ use std::thread;
 
 use dpdk_net::api::rte::eth::{EthConf, EthDev, rss_hf};
 use dpdk_net::api::rte::thread::{ThreadRegistration, set_cpu_affinity};
-use dpdk_net::tcp::{Reactor, SharedArpCache, TcpListener};
+use dpdk_net::device::SharedArpCache;
+use dpdk_net::runtime::Reactor;
+use dpdk_net::socket::TcpListener;
 
 use smoltcp::iface::{Config, Interface};
 use smoltcp::time::Instant;

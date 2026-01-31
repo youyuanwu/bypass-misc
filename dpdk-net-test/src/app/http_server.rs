@@ -11,7 +11,7 @@
 //!
 //! ```no_run
 //! use dpdk_net_test::app::http_server::{HttpAutoServer, Http1Server, echo_service};
-//! use dpdk_net::tcp::TcpListener;
+//! use dpdk_net::socket::TcpListener;
 //! use tokio_util::sync::CancellationToken;
 //!
 //! // Using the default echo handler
@@ -40,8 +40,8 @@
 
 use std::future::Future;
 
-use dpdk_net::tcp::TcpListener;
-use dpdk_net::tcp::async_net::TokioTcpStream;
+use dpdk_net::runtime::tokio_compat::TokioTcpStream;
+use dpdk_net::socket::TcpListener;
 use tracing::{debug, error, info};
 
 use http_body_util::BodyExt;

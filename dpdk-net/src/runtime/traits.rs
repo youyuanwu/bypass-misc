@@ -13,7 +13,7 @@ use std::future::Future;
 /// # Example
 ///
 /// ```rust
-/// use dpdk_net::tcp::async_net::Runtime;
+/// use dpdk_net::runtime::Runtime;
 ///
 /// struct MyRuntime;
 ///

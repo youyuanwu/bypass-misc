@@ -3,10 +3,10 @@
 //! The reactor drives the network stack by continuously polling DPDK for packets
 //! and processing them through smoltcp.
 
+use super::Runtime;
 #[cfg(feature = "tokio")]
 use super::TokioRuntime;
-use super::runtime::Runtime;
-use crate::tcp::DpdkDevice;
+use crate::device::DpdkDevice;
 
 use smoltcp::iface::{Interface, PollIngressSingleResult, SocketHandle, SocketSet};
 use smoltcp::phy::Device;
@@ -124,7 +124,8 @@ impl Reactor<DpdkDevice> {
     /// # Example
     ///
     /// ```no_run
-    /// # use dpdk_net::tcp::{DpdkDevice, Reactor};
+    /// # use dpdk_net::device::DpdkDevice;
+    /// # use dpdk_net::runtime::Reactor;
     /// # use smoltcp::iface::Interface;
     /// # use std::sync::atomic::AtomicBool;
     /// # use std::sync::Arc;
@@ -181,8 +182,8 @@ impl Reactor<DpdkDevice> {
     /// # Example
     ///
     /// ```no_run
-    /// # use dpdk_net::tcp::{DpdkDevice, Reactor};
-    /// # use dpdk_net::tcp::async_net::TokioRuntime;
+    /// # use dpdk_net::device::DpdkDevice;
+    /// # use dpdk_net::runtime::{Reactor, TokioRuntime};
     /// # use smoltcp::iface::Interface;
     /// # use std::sync::atomic::AtomicBool;
     /// # use std::sync::Arc;

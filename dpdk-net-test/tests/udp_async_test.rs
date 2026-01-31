@@ -8,7 +8,9 @@
 //! EAL and EthDev are initialized once globally; each test recreates the DpdkDevice.
 
 use dpdk_net::api::rte::eal::{Eal, EalBuilder};
-use dpdk_net::tcp::{DpdkDevice, Reactor, UdpSocket};
+use dpdk_net::device::DpdkDevice;
+use dpdk_net::runtime::Reactor;
+use dpdk_net::socket::UdpSocket;
 use dpdk_net_test::eth_dev_config::EthDevConfig;
 use smoltcp::iface::{Config, Interface};
 use smoltcp::time::Instant;

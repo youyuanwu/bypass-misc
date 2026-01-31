@@ -7,8 +7,9 @@
 //! Note: HTTP/2 uses cleartext (h2c), not TLS.
 
 use dpdk_net::BoxError;
-use dpdk_net::tcp::async_net::TokioTcpStream;
-use dpdk_net::tcp::{Reactor, ReactorHandle, TcpListener, TcpStream};
+use dpdk_net::runtime::tokio_compat::TokioTcpStream;
+use dpdk_net::runtime::{Reactor, ReactorHandle};
+use dpdk_net::socket::{TcpListener, TcpStream};
 
 use dpdk_net_test::app::http_server::{HttpAutoServer, LocalExecutor, echo_service};
 use dpdk_net_test::dpdk_test::DpdkTestContextBuilder;

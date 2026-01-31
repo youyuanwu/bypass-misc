@@ -2,14 +2,14 @@
 //!
 //! This module provides:
 //! - [`TokioRuntime`]: Implementation of the [`Runtime`](super::Runtime) trait for tokio
-//! - [`TokioTcpStream`]: A wrapper around [`TcpStream`](super::TcpStream) that implements
+//! - [`TokioTcpStream`]: A wrapper around [`TcpStream`](crate::socket::TcpStream) that implements
 //!   tokio's [`AsyncRead`](tokio::io::AsyncRead) and [`AsyncWrite`](tokio::io::AsyncWrite) traits
 //!
 //! # Example
 //!
 //! ```no_run
-//! use dpdk_net::tcp::async_net::TcpStream;
-//! use dpdk_net::tcp::async_net::tokio_compat::TokioTcpStream;
+//! use dpdk_net::socket::TcpStream;
+//! use dpdk_net::runtime::tokio_compat::TokioTcpStream;
 //! use tokio::io::{AsyncReadExt, AsyncWriteExt};
 //!
 //! async fn example(stream: TcpStream) {
@@ -23,7 +23,7 @@
 //! ```
 
 use super::Runtime;
-use super::TcpStream;
+use crate::socket::TcpStream;
 use smoltcp::socket::tcp::{self, RecvError, State};
 use std::future::Future;
 use std::io;

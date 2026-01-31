@@ -1,7 +1,7 @@
 //! Async UDP socket implementation
 
-use super::super::DpdkDevice;
-use super::{ReactorHandle, ReactorInner};
+use crate::device::DpdkDevice;
+use crate::runtime::{ReactorHandle, ReactorInner};
 use smoltcp::iface::SocketHandle;
 use smoltcp::socket::udp::{self, BindError, RecvError, SendError, UdpMetadata};
 use smoltcp::wire::IpEndpoint;

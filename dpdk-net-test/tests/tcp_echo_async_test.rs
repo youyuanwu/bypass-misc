@@ -12,7 +12,8 @@
 //! across tests within the same process.
 
 use dpdk_net::BoxError;
-use dpdk_net::tcp::{Reactor, ReactorHandle, TcpListener, TcpStream};
+use dpdk_net::runtime::{Reactor, ReactorHandle};
+use dpdk_net::socket::{TcpListener, TcpStream};
 use dpdk_net_test::app::echo_server::{EchoServer, ServerStats};
 use dpdk_net_test::dpdk_test::DpdkTestContextBuilder;
 use smoltcp::iface::{Config, Interface};

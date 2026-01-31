@@ -12,7 +12,7 @@ use dpdk_net::api::rte::eth::EthDev;
 use crate::eth_dev_config::EthDevConfig;
 
 // Re-export DpdkDevice for convenience
-pub use dpdk_net::tcp::DpdkDevice;
+pub use dpdk_net::device::DpdkDevice;
 
 // Re-export constants from eth_dev_config for backward compatibility
 pub use crate::eth_dev_config::{

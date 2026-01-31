@@ -1,7 +1,7 @@
 //! Async TCP socket implementation
 
-use super::super::DpdkDevice;
-use super::{ReactorHandle, ReactorInner};
+use crate::device::DpdkDevice;
+use crate::runtime::{ReactorHandle, ReactorInner};
 use smoltcp::iface::SocketHandle;
 use smoltcp::socket::tcp::{self, ConnectError, ListenError, RecvError, SendError, State};
 use smoltcp::wire::IpAddress;

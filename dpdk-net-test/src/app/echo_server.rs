@@ -7,7 +7,8 @@
 //!
 //! ```no_run
 //! use dpdk_net_test::app::echo_server::{EchoServer, ServerStats};
-//! use dpdk_net::tcp::{TcpListener, ReactorHandle};
+//! use dpdk_net::socket::TcpListener;
+//! use dpdk_net::runtime::ReactorHandle;
 //! use tokio_util::sync::CancellationToken;
 //! use std::sync::Arc;
 //!
@@ -21,7 +22,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use dpdk_net::tcp::{TcpListener, TcpStream};
+use dpdk_net::socket::{TcpListener, TcpStream};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
