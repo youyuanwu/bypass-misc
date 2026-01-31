@@ -1,6 +1,6 @@
 # Benchmark Comparison
 
-Generated: 2026-01-30T20:44:39.846387
+Generated: 2026-01-30T21:36:35.686846
 
 Modes tested: dpdk, tokio, tokio-local, kimojio, kimojio-poll
 
@@ -137,6 +137,31 @@ xychart-beta
 **Legend:** dpdk (blue) | tokio (orange) | tokio-local (green) | kimojio (purple) | kimojio-poll (pink)
 
 
+### p50 Latency (Low Connections)
+
+```mermaid
+---
+config:
+    themeVariables:
+        xyChart:
+            plotColorPalette: "#3366cc, #ff9900, #33cc33, #9933ff, #cc3366"
+---
+xychart-beta
+    title "p50 Latency (Low Connection Counts)"
+    x-axis "Connections" [10, 50, 100, 200]
+    y-axis "Latency (μs)" 0 --> 751
+    line "dpdk" [78, 140, 225, 361]
+    line "tokio" [100, 212, 343, 626]
+    line "tokio-local" [100, 204, 304, 574]
+    line "kimojio" [104, 206, 308, 559]
+    line "kimojio-poll" [80, 198, 305, 551]
+```
+
+**Legend:** dpdk (blue) | tokio (orange) | tokio-local (green) | kimojio (purple) | kimojio-poll (pink)
+
+
+**DPDK p50 latency improvement at 200 connections: +34.5%** (positive = DPDK is faster)
+
 ## Latency Comparison (p90)
 
 ```mermaid
@@ -160,6 +185,31 @@ xychart-beta
 **Legend:** dpdk (blue) | tokio (orange) | tokio-local (green) | kimojio (purple) | kimojio-poll (pink)
 
 
+### p90 Latency (Low Connections)
+
+```mermaid
+---
+config:
+    themeVariables:
+        xyChart:
+            plotColorPalette: "#3366cc, #ff9900, #33cc33, #9933ff, #cc3366"
+---
+xychart-beta
+    title "p90 Latency (Low Connection Counts)"
+    x-axis "Connections" [10, 50, 100, 200]
+    y-axis "Latency (μs)" 0 --> 1053
+    line "dpdk" [107, 218, 324, 517]
+    line "tokio" [142, 319, 495, 878]
+    line "tokio-local" [138, 320, 435, 730]
+    line "kimojio" [142, 304, 454, 730]
+    line "kimojio-poll" [122, 304, 444, 725]
+```
+
+**Legend:** dpdk (blue) | tokio (orange) | tokio-local (green) | kimojio (purple) | kimojio-poll (pink)
+
+
+**DPDK p90 latency improvement at 200 connections: +28.7%** (positive = DPDK is faster)
+
 ## Latency Comparison (p99)
 
 ```mermaid
@@ -182,6 +232,31 @@ xychart-beta
 
 **Legend:** dpdk (blue) | tokio (orange) | tokio-local (green) | kimojio (purple) | kimojio-poll (pink)
 
+
+### p99 Latency (Low Connections)
+
+```mermaid
+---
+config:
+    themeVariables:
+        xyChart:
+            plotColorPalette: "#3366cc, #ff9900, #33cc33, #9933ff, #cc3366"
+---
+xychart-beta
+    title "p99 Latency (Low Connection Counts)"
+    x-axis "Connections" [10, 50, 100, 200]
+    y-axis "Latency (μs)" 0 --> 1378
+    line "dpdk" [163, 297, 422, 672]
+    line "tokio" [215, 434, 684, 1149]
+    line "tokio-local" [199, 437, 588, 958]
+    line "kimojio" [200, 401, 604, 914]
+    line "kimojio-poll" [193, 407, 594, 917]
+```
+
+**Legend:** dpdk (blue) | tokio (orange) | tokio-local (green) | kimojio (purple) | kimojio-poll (pink)
+
+
+**DPDK p99 latency improvement at 200 connections: +26.5%** (positive = DPDK is faster)
 
 ## Raw Data
 

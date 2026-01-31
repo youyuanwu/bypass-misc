@@ -4,15 +4,27 @@ Generate benchmark comparison Markdown with Mermaid charts.
 
 Reads summary.json from each mode directory and creates a comparison report.
 Modes are auto-detected from subdirectories containing summary.json.
+
+Usage:
+    # Default: build/benchmarks/
+    python3 generate_benchmark_report.py
+
+    # Custom directory (e.g., after matrix benchmark):
+    python3 generate_benchmark_report.py --dir build/benchmarks_d2s
+    python3 generate_benchmark_report.py --dir build/benchmarks_d8s
 """
 
+import argparse
 import json
 import os
 from pathlib import Path
 from datetime import datetime
 
-BENCHMARKS_DIR = Path(__file__).parent.parent.parent / "build" / "benchmarks"
-OUTPUT_FILE = BENCHMARKS_DIR / "BENCHMARK_COMPARISON.md"
+# Default benchmarks directory
+DEFAULT_BENCHMARKS_DIR = Path(__file__).parent.parent.parent / "build" / "benchmarks"
+
+# Will be set by main() based on args
+BENCHMARKS_DIR: Path = DEFAULT_BENCHMARKS_DIR
 
 # Preferred order for display (modes not in this list appear at the end alphabetically)
 MODE_ORDER = ["dpdk", "tokio", "tokio-local", "kimojio", "kimojio-poll"]
@@ -291,6 +303,60 @@ def generate_markdown() -> str:
     lines.append("```")
     lines.extend(add_legend(modes))
 
+    # Latency p50 chart (low connections - first 4 points)
+    low_connections = all_connections[:4]
+    if len(low_connections) > 1:
+        lines.extend([
+            "",
+            "### p50 Latency (Low Connections)",
+            "",
+            "```mermaid",
+            "---",
+            "config:",
+            "    themeVariables:",
+            "        xyChart:",
+            f'            plotColorPalette: "{chart_colors}"',
+            "---",
+            "xychart-beta",
+            '    title "p50 Latency (Low Connection Counts)"',
+            f'    x-axis "Connections" [{", ".join(str(c) for c in low_connections)}]',
+        ])
+
+        max_p50_low = max(
+            summaries[mode].get(c, {}).get("latency", {}).get("p50_us", 0)
+            for mode in modes if mode in summaries
+            for c in low_connections
+        )
+        y_max_lat_low = int(max_p50_low * 1.2) if max_p50_low > 0 else 100
+        lines.append(f'    y-axis "Latency (μs)" 0 --> {y_max_lat_low}')
+
+        for mode in modes:
+            if mode not in summaries:
+                continue
+            values = [
+                str(summaries[mode].get(c, {}).get("latency", {}).get("p50_us", 0))
+                for c in low_connections
+            ]
+            lines.append(f'    line "{mode}" [{", ".join(values)}]')
+
+        lines.append("```")
+        lines.extend(add_legend(modes))
+
+        # Calculate DPDK latency improvement at last low-connection point
+        if "dpdk" in summaries and len(low_connections) > 0:
+            last_conn = low_connections[-1]
+            dpdk_lat = summaries["dpdk"].get(last_conn, {}).get("latency", {}).get("p50_us", 0)
+            other_lats = [
+                summaries[m].get(last_conn, {}).get("latency", {}).get("p50_us", 0)
+                for m in modes if m != "dpdk" and m in summaries
+            ]
+            if other_lats and dpdk_lat > 0:
+                best_other = min(lat for lat in other_lats if lat > 0) if any(lat > 0 for lat in other_lats) else 0
+                if best_other > 0:
+                    improvement = ((best_other - dpdk_lat) / best_other) * 100
+                    lines.append("")
+                    lines.append(f"**DPDK p50 latency improvement at {last_conn} connections: {improvement:+.1f}%** (positive = DPDK is faster)")
+
     # Latency p90 chart
     lines.extend([
         "",
@@ -327,6 +393,59 @@ def generate_markdown() -> str:
 
     lines.append("```")
     lines.extend(add_legend(modes))
+
+    # Latency p90 chart (low connections - first 4 points)
+    if len(low_connections) > 1:
+        lines.extend([
+            "",
+            "### p90 Latency (Low Connections)",
+            "",
+            "```mermaid",
+            "---",
+            "config:",
+            "    themeVariables:",
+            "        xyChart:",
+            f'            plotColorPalette: "{chart_colors}"',
+            "---",
+            "xychart-beta",
+            '    title "p90 Latency (Low Connection Counts)"',
+            f'    x-axis "Connections" [{", ".join(str(c) for c in low_connections)}]',
+        ])
+
+        max_p90_low = max(
+            summaries[mode].get(c, {}).get("latency", {}).get("p90_us", 0)
+            for mode in modes if mode in summaries
+            for c in low_connections
+        )
+        y_max_p90_low = int(max_p90_low * 1.2) if max_p90_low > 0 else 100
+        lines.append(f'    y-axis "Latency (μs)" 0 --> {y_max_p90_low}')
+
+        for mode in modes:
+            if mode not in summaries:
+                continue
+            values = [
+                str(summaries[mode].get(c, {}).get("latency", {}).get("p90_us", 0))
+                for c in low_connections
+            ]
+            lines.append(f'    line "{mode}" [{", ".join(values)}]')
+
+        lines.append("```")
+        lines.extend(add_legend(modes))
+
+        # Calculate DPDK latency improvement at last low-connection point
+        if "dpdk" in summaries and len(low_connections) > 0:
+            last_conn = low_connections[-1]
+            dpdk_lat = summaries["dpdk"].get(last_conn, {}).get("latency", {}).get("p90_us", 0)
+            other_lats = [
+                summaries[m].get(last_conn, {}).get("latency", {}).get("p90_us", 0)
+                for m in modes if m != "dpdk" and m in summaries
+            ]
+            if other_lats and dpdk_lat > 0:
+                best_other = min(lat for lat in other_lats if lat > 0) if any(lat > 0 for lat in other_lats) else 0
+                if best_other > 0:
+                    improvement = ((best_other - dpdk_lat) / best_other) * 100
+                    lines.append("")
+                    lines.append(f"**DPDK p90 latency improvement at {last_conn} connections: {improvement:+.1f}%** (positive = DPDK is faster)")
 
     # Latency p99 chart
     lines.extend([
@@ -365,6 +484,59 @@ def generate_markdown() -> str:
     lines.append("```")
     lines.extend(add_legend(modes))
 
+    # Latency p99 chart (low connections - first 4 points)
+    if len(low_connections) > 1:
+        lines.extend([
+            "",
+            "### p99 Latency (Low Connections)",
+            "",
+            "```mermaid",
+            "---",
+            "config:",
+            "    themeVariables:",
+            "        xyChart:",
+            f'            plotColorPalette: "{chart_colors}"',
+            "---",
+            "xychart-beta",
+            '    title "p99 Latency (Low Connection Counts)"',
+            f'    x-axis "Connections" [{", ".join(str(c) for c in low_connections)}]',
+        ])
+
+        max_p99_low = max(
+            summaries[mode].get(c, {}).get("latency", {}).get("p99_us", 0)
+            for mode in modes if mode in summaries
+            for c in low_connections
+        )
+        y_max_p99_low = int(max_p99_low * 1.2) if max_p99_low > 0 else 100
+        lines.append(f'    y-axis "Latency (μs)" 0 --> {y_max_p99_low}')
+
+        for mode in modes:
+            if mode not in summaries:
+                continue
+            values = [
+                str(summaries[mode].get(c, {}).get("latency", {}).get("p99_us", 0))
+                for c in low_connections
+            ]
+            lines.append(f'    line "{mode}" [{", ".join(values)}]')
+
+        lines.append("```")
+        lines.extend(add_legend(modes))
+
+        # Calculate DPDK latency improvement at last low-connection point
+        if "dpdk" in summaries and len(low_connections) > 0:
+            last_conn = low_connections[-1]
+            dpdk_lat = summaries["dpdk"].get(last_conn, {}).get("latency", {}).get("p99_us", 0)
+            other_lats = [
+                summaries[m].get(last_conn, {}).get("latency", {}).get("p99_us", 0)
+                for m in modes if m != "dpdk" and m in summaries
+            ]
+            if other_lats and dpdk_lat > 0:
+                best_other = min(lat for lat in other_lats if lat > 0) if any(lat > 0 for lat in other_lats) else 0
+                if best_other > 0:
+                    improvement = ((best_other - dpdk_lat) / best_other) * 100
+                    lines.append("")
+                    lines.append(f"**DPDK p99 latency improvement at {last_conn} connections: {improvement:+.1f}%** (positive = DPDK is faster)")
+
     # Raw data section
     lines.extend([
         "",
@@ -393,16 +565,51 @@ def generate_markdown() -> str:
 
 def main():
     """Main entry point."""
+    global BENCHMARKS_DIR
+    
+    parser = argparse.ArgumentParser(
+        description="Generate benchmark comparison Markdown with Mermaid charts."
+    )
+    parser.add_argument(
+        "--dir", "-d",
+        type=Path,
+        default=DEFAULT_BENCHMARKS_DIR,
+        help="Benchmarks directory containing mode subdirectories (default: build/benchmarks/)"
+    )
+    parser.add_argument(
+        "--output", "-o",
+        type=Path,
+        default=None,
+        help="Output file path (default: <dir>/BENCHMARK_<dirname>.md)"
+    )
+    args = parser.parse_args()
+    
+    BENCHMARKS_DIR = args.dir.resolve()
+    
+    # Default output filename based on directory name
+    if args.output:
+        output_file = args.output
+    else:
+        dir_name = BENCHMARKS_DIR.name
+        # Extract suffix like "d2s" from "benchmarks_d2s", otherwise use full name
+        if dir_name.startswith("benchmarks_"):
+            suffix = dir_name[len("benchmarks_"):]
+            output_file = BENCHMARKS_DIR / f"BENCHMARK_{suffix}.md"
+        elif dir_name == "benchmarks":
+            output_file = BENCHMARKS_DIR / "BENCHMARK_COMPARISON.md"
+        else:
+            output_file = BENCHMARKS_DIR / f"BENCHMARK_{dir_name}.md"
+    
     if not BENCHMARKS_DIR.exists():
         print(f"Error: Benchmarks directory not found: {BENCHMARKS_DIR}")
         return 1
 
     content = generate_markdown()
 
-    with open(OUTPUT_FILE, "w") as f:
+    with open(output_file, "w") as f:
         f.write(content)
 
-    print(f"Generated: {OUTPUT_FILE}")
+    print(f"Generated: {output_file}")
     return 0
 
 
