@@ -7,7 +7,7 @@ fn main() {
 
     // Use pkg-config to find DPDK with static linking preferred
     let cfg = pkg_config::Config::new()
-        .atleast_version("22.11.11")
+        .atleast_version("25.11.0")
         .statik(true)
         .probe("libdpdk")
         .unwrap();

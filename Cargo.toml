@@ -29,7 +29,7 @@ http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["tokio", "server-auto"] }
 socket2 = { version = "0.6", features = ["all"] }
 httparse = "1.10"
-kimojio = "0.14"
+kimojio = { version = "0.14", default-features = false }
 
 pkg-config = "0.3"
 bindgen = "0.72"

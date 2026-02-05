@@ -623,20 +623,14 @@ impl DpdkServerRunner {
         );
     }
 
-    fn cleanup(&self, eth_dev: EthDev, num_queues: usize) {
-        // Print per-queue stats before cleanup
+    fn cleanup(&self, eth_dev: EthDev, _num_queues: usize) {
+        // Print device stats before cleanup
+        // Note: Per-queue stats (q_ipackets, q_opackets) were removed in DPDK 25.11.0
         if let Ok(stats) = eth_dev.stats() {
             info!(
                 "Device stats: ipackets={}, opackets={}, ibytes={}, obytes={}",
                 stats.ipackets, stats.opackets, stats.ibytes, stats.obytes
             );
-            let max_queue_stats = stats.q_ipackets.len();
-            for q in 0..std::cmp::min(num_queues, max_queue_stats) {
-                info!(
-                    "Queue {} - RX: {} packets, TX: {} packets",
-                    q, stats.q_ipackets[q], stats.q_opackets[q]
-                );
-            }
         }
 
         debug!("Cleaning up");

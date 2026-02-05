@@ -35,7 +35,7 @@ endif()
 # Create control file
 file(WRITE "${PKG_DIR}/DEBIAN/control"
 "Package: dpdk-net
-Version: 22.11.11
+Version: 25.11.0
 Section: libs
 Priority: optional
 Architecture: amd64

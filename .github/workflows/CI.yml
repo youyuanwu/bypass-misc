@@ -43,7 +43,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y meson ninja-build python3-pyelftools
+        sudo apt-get install -y meson ninja-build python3-pyelftools libnuma-dev
 
     - name: Build and install dpdk
       run: |

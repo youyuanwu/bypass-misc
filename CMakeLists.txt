@@ -60,7 +60,7 @@ message(STATUS "Fetching DPDK source code...")
 FetchContent_Populate(
   dpdk
   GIT_REPOSITORY https://github.com/DPDK/dpdk.git
-  GIT_TAG        v22.11.11  # or specify a specific version tag like v23.11
+  GIT_TAG        ed957165eadbe60a47d5ec223578cdd1c13d0bd9 # v25.11.0
   GIT_SHALLOW    TRUE
 )
 
@@ -102,7 +102,7 @@ add_custom_target(dpdk_build
 
 # Add custom target to install DPDK from deb package
 add_custom_target(dpdk_install
-  COMMAND apt install -y ${CMAKE_CURRENT_BINARY_DIR}/dpdk-net_22.11.11_amd64.deb
+  COMMAND apt install -y ${CMAKE_CURRENT_BINARY_DIR}/dpdk-net_25.11.0_amd64.deb
   # update the shared library cache
   COMMAND ldconfig
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -124,7 +124,7 @@ add_custom_target(dpdk_uninstall
 add_custom_target(dpdk_clean
   COMMAND ninja -C ${dpdk_BINARY_DIR} clean
   COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg
-  COMMAND ${CMAKE_COMMAND} -E remove -f ${CMAKE_CURRENT_BINARY_DIR}/dpdk-net_22.11.11_amd64.deb
+  COMMAND ${CMAKE_COMMAND} -E remove -f ${CMAKE_CURRENT_BINARY_DIR}/dpdk-net_25.11.0_amd64.deb
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   COMMENT "Cleaning DPDK build artifacts and deb package"
   VERBATIM
@@ -135,7 +135,7 @@ add_custom_target(dpdk_clean
 # Skips if deb file already exists
 add_custom_target(dpdk_deb
   COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/dpdk_deb.cmake
-    ${CMAKE_CURRENT_BINARY_DIR}/dpdk-net_22.11.11_amd64.deb
+    ${CMAKE_CURRENT_BINARY_DIR}/dpdk-net_25.11.0_amd64.deb
     ${CMAKE_CURRENT_BINARY_DIR}/dpdk-pkg
     ${dpdk_BINARY_DIR}
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
