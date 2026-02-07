@@ -32,17 +32,33 @@ if(NOT result EQUAL 0)
   message(FATAL_ERROR "Failed to run ninja install")
 endif()
 
-# Create control file
-file(WRITE "${PKG_DIR}/DEBIAN/control"
-"Package: dpdk-net
-Version: 25.11.0
-Section: libs
-Priority: optional
-Architecture: amd64
-Depends: libc6, libnuma1, libelf1t64 | libelf1, zlib1g, libzstd1, libssl3t64 | libssl3, libatomic1, rdma-core, libibverbs1, libmlx5-1, librdmacm1
-Maintainer: maintainer@example.com
-Description: Data Plane Development Kit with Mellanox mlx5 support (custom build for dpdk-net)
-")
+# Remove example source code (always installed by DPDK regardless of -Dexamples option)
+file(REMOVE_RECURSE "${PKG_DIR}/opt/dpdk/share/dpdk/examples")
+
+# Copy DEBIAN package files from cmake directory
+# Note: dev packages needed for pkg-config dependencies (Requires.private in libdpdk.pc)
+file(COPY "${CMAKE_CURRENT_LIST_DIR}/pkg/control"
+  DESTINATION "${PKG_DIR}/DEBIAN"
+  FILE_PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
+)
+file(COPY "${CMAKE_CURRENT_LIST_DIR}/pkg/postinst" "${CMAKE_CURRENT_LIST_DIR}/pkg/postrm"
+  DESTINATION "${PKG_DIR}/DEBIAN"
+  FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+)
+
+# Install profile.d script to set up PKG_CONFIG_PATH
+file(MAKE_DIRECTORY "${PKG_DIR}/etc/profile.d")
+file(COPY "${CMAKE_CURRENT_LIST_DIR}/pkg/dpdk-net.sh"
+  DESTINATION "${PKG_DIR}/etc/profile.d"
+  FILE_PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
+)
+
+# Install ld.so.conf.d config for library path
+file(MAKE_DIRECTORY "${PKG_DIR}/etc/ld.so.conf.d")
+file(COPY "${CMAKE_CURRENT_LIST_DIR}/pkg/dpdk-net.conf"
+  DESTINATION "${PKG_DIR}/etc/ld.so.conf.d"
+  FILE_PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
+)
 
 # Build deb package
 execute_process(

@@ -57,12 +57,13 @@ endif()
 include(FetchContent)
 
 message(STATUS "Fetching DPDK source code...")
-FetchContent_Populate(
+FetchContent_Declare(
   dpdk
   GIT_REPOSITORY https://github.com/DPDK/dpdk.git
   GIT_TAG        ed957165eadbe60a47d5ec223578cdd1c13d0bd9 # v25.11.0
   GIT_SHALLOW    TRUE
 )
+FetchContent_MakeAvailable(dpdk)
 
 message(STATUS "DPDK source code fetched to: ${dpdk_SOURCE_DIR}")
 message(STATUS "DPDK build directory: ${dpdk_BINARY_DIR}")
@@ -80,14 +81,14 @@ add_custom_target(dpdk_configure
   VERBATIM
 )
 
-# Add custom target to force reconfigure DPDK with meson
+# Add custom target to force reconfigure DPDK with meson (wipes existing config)
 add_custom_target(dpdk_reconfigure
-  COMMAND meson setup --reconfigure ${dpdk_BINARY_DIR} ${dpdk_SOURCE_DIR}
-    -Dexamples=all
+  COMMAND ${CMAKE_COMMAND} -E rm -rf ${dpdk_BINARY_DIR}
+  COMMAND meson setup ${dpdk_BINARY_DIR} ${dpdk_SOURCE_DIR}
     -Dcpu_instruction_set=generic
     --buildtype=release
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  COMMENT "Reconfiguring DPDK with meson"
+  COMMENT "Wiping and reconfiguring DPDK with meson"
   VERBATIM
 )
 
@@ -141,26 +142,6 @@ add_custom_target(dpdk_deb
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   COMMENT "Creating DPDK .deb package (staged, no system install)"
   # DEPENDS dpdk_build
-  VERBATIM
-)
-
-# Run example
-add_custom_target(dpdk_run_example
-  COMMAND echo "=== Running helloworld example ==="
-  COMMAND sudo ${dpdk_BINARY_DIR}/examples/dpdk-helloworld || true
-  COMMAND echo ""
-  # This requires 2 devices; uncomment if you have them
-  # COMMAND echo "=== Running skeleton example ==="
-  # COMMAND sudo ${dpdk_BINARY_DIR}/examples/dpdk-skeleton || true
-  # COMMAND echo ""
-  # COMMAND echo "=== Checking network devices with dpdk-devbind ==="
-  # COMMAND sudo ${dpdk_SOURCE_DIR}/usertools/dpdk-devbind.py --status
-  COMMAND echo "=== Running testpmd example ==="
-  COMMAND sudo ${dpdk_BINARY_DIR}/app/dpdk-testpmd -l 0-1 -n 4 -- --forward-mode=io --port-topology=chained
-  # COMMAND sudo ${dpdk_BINARY_DIR}/examples/dpdk-l2fwd -l 0-1 -n 4 -- -p 0x1 -q 1
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  COMMENT "Running DPDK examples"
-  DEPENDS dpdk_build
   VERBATIM
 )
 

@@ -6,7 +6,7 @@
 # - Already configured: skips (do nothing)
 # Use dpdk_reconfigure target to force reconfiguration
 
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.28)
 
 # Get arguments
 set(DPDK_BUILD_DIR "${CMAKE_ARGV3}")
@@ -14,7 +14,6 @@ set(DPDK_SOURCE_DIR "${CMAKE_ARGV4}")
 
 # Common meson options
 set(MESON_OPTIONS
-  -Dexamples=all
   -Dcpu_instruction_set=generic
   --buildtype=release
 )
